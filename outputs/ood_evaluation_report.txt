@@ -1,0 +1,15 @@
+=== Out-of-Distribution (OOD) Evaluation Report ===
+Tested on 49 In-Dist windows and 49 OOD windows.
+
+--- OOD Detection Performance ---
+AUROC (Separation Power):     0.9130
+OOD Recall (Sensitivity):     24.49%
+OOD Precision:                100.00%
+OOD F1-Score:                 0.3934
+False Positive Rate (FPR):    0.00% (Normal cycles incorrectly flagged as OOD)
+
+--- Known Samples Incorrectly Rejected as OOD ---
+Count: 0 out of 49
+
+--- Examples of Detected Synthetic Unknown Patterns ---
+Successfully caught anomaly with score 0.6947

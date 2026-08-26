@@ -1,0 +1,6 @@
+{
+    "idle_threshold": 0.7391166666666666,
+    "stability_threshold": 1.080000991388376,
+    "acceleration_threshold": 1.080000991388376,
+    "deceleration_threshold": 1.080000991388376
+}

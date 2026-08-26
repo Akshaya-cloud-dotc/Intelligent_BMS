@@ -1,0 +1,76 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  font-family: 'Inter', system-ui, sans-serif;
+}
+
+.glass-card {
+  background-color: #FDFDFF;
+  border-radius: 20px;
+  padding: 24px;
+  border: 1px solid #E6E2F0;
+  box-shadow: 0px 4px 16px rgba(80,80,120,0.08);
+  transition: box-shadow 0.3s ease;
+}
+
+.glass-card:hover {
+  box-shadow: 0px 8px 24px rgba(80,80,120,0.12);
+}
+
+/* Custom typography to keep markup clean */
+.page-title {
+  font-size: 28px;
+  font-weight: 700;
+  color: #4E4B66;
+}
+
+.section-title {
+  font-size: 20px;
+  font-weight: 600;
+  color: #4E4B66;
+}
+
+.card-label {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #9B98B5;
+}
+
+.primary-value {
+  font-size: 56px;
+  font-weight: 700;
+  color: #4E4B66;
+  line-height: 1;
+}
+
+.normal-value {
+  font-size: 20px;
+  font-weight: 700;
+  color: #4E4B66;
+}
+
+.secondary-text {
+  font-size: 14px;
+  font-weight: 400;
+  color: #9B98B5;
+}
+
+/* Custom Scrollbar for Parameter Table */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background-color: #E6E2F0;
+  border-radius: 20px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: #CDB4DB;
+}

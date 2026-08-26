@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+# START script for AI-PBMS systemd services
+
+# Ensure it runs with sudo
+if [ "$EUID" -ne 0 ]; then
+  echo "Please run as root or with sudo:"
+  echo "sudo ./START"
+  exit 1
+fi
+
+echo "======================================================================"
+echo "          Starting AI-PBMS Autonomous Services via systemd            "
+echo "======================================================================"
+
+# 1. Stop any loose python processes that could conflict (running from old manual scripts)
+echo "Cleaning up any conflicting manual processes..."
+pkill -f bms_dashboard_backend.py 2>/dev/null
+pkill -f bms_bluetooth_gateway.py 2>/dev/null
+pkill -f watchdog.py 2>/dev/null
+pkill -f cloudflared 2>/dev/null
+sleep 1
+
+# 2. Enable services so they start automatically on boot
+echo "Enabling services for automatic startup on reboot..."
+systemctl enable bms-backend.service bms-bluetooth.service bms-cloudflare.service bms-watchdog.service
+
+# 3. Start services
+echo "Starting services..."
+systemctl start bms-backend.service
+systemctl start bms-bluetooth.service
+systemctl start bms-cloudflare.service
+systemctl start bms-watchdog.service
+
+sleep 2
+
+echo "======================================================================"
+echo "✓ All services enabled and started successfully!"
+echo "======================================================================"
+# Show status of services
+systemctl status bms-backend.service bms-bluetooth.service bms-cloudflare.service bms-watchdog.service --no-pager -n 0
+echo "======================================================================"
+echo "Streaming live Bluetooth gateway logs below (Press Ctrl+C to stop viewing)..."
+echo "----------------------------------------------------------------------"
+journalctl -u bms-bluetooth.service -f

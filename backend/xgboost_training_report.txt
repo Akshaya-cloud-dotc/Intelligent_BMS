@@ -1,0 +1,41 @@
+BMS ML XGBoost Pipeline Retraining Evaluation Report
+===================================================
+
+Total Rows In Balanced Dataset: 200000 rows
+  - Real healthy / Normal rows: 100000 rows
+  - Real fault rows: 0 rows
+  - Synthetic fault rows (Classes 1-5): 100000 rows
+
+Dataset Splitting Breakdown:
+  - Train split (70%)     : 140000 rows
+  - Validation split (15%): 30000 rows
+  - Test split (15%)      : 30000 rows
+
+Class Distribution (Balanced):
+  - Normal                : Train=70000 Val=15000 Test=15000 Total=100000
+  - Cell Imbalance        : Train=14000 Val=3000 Test=3000 Total=20000
+  - Weak Cell             : Train=14000 Val=3000 Test=3000 Total=20000
+  - Overvoltage Risk      : Train=14000 Val=3000 Test=3000 Total=20000
+  - Undervoltage Risk     : Train=14000 Val=3000 Test=3000 Total=20000
+  - Overtemperature Risk  : Train=14000 Val=3000 Test=3000 Total=20000
+
+Overall Test Accuracy: 91.68%
+
+Classification Metrics Per Class:
+  Class Name             | Precision | Recall    | F1-Score 
+  ---------------------------------------------------------
+  Normal                 | 0.9954    | 0.9979    | 0.9967   
+  Cell Imbalance         | 0.8280    | 0.5777    | 0.6805   
+  Weak Cell              | 0.8170    | 0.8350    | 0.8259   
+  Overvoltage Risk       | 0.9258    | 0.9647    | 0.9448   
+  Undervoltage Risk      | 0.6619    | 0.8093    | 0.7283   
+  Overtemperature Risk   | 0.9887    | 0.9917    | 0.9902   
+
+Confusion Matrix (Rows: True label, Columns: Predicted label):
+  [0]  [1]  [2]  [3]  [4]  [5]
+  14969   15     9      1      4      2     <- True: Normal
+  27     1733   132    226    873    9     <- True: Cell Imbalance
+  2      120    2505   0      362    11    <- True: Weak Cell
+  12     90     0      2894   0      4     <- True: Overvoltage Risk
+  13     131    420    0      2428   8     <- True: Undervoltage Risk
+  15     4      0      5      1      2975  <- True: Overtemperature Risk

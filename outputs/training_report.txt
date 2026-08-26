@@ -1,0 +1,57 @@
+Caterpillar Tech Challenge - AI-PBMS Training Report
+=====================================================
+Model Architecture: Time-Series Transformer Encoder
+d_model: 64 | nhead: 4 | num_layers: 2 | dim_feedforward: 128
+Lookback Sequence: 60 rows
+Prediction Horizon: 5 rows
+Total Features: 50
+Dataset Sizes: Train Sequences = 71986, Test Sequences = 17948
+
+Class Mapping:
+{
+  "0": "Normal",
+  "1": "Cell Imbalance",
+  "2": "Weak Cell",
+  "3": "Overvoltage Risk",
+  "4": "Undervoltage Risk"
+}
+
+Training Class Distribution (Original Labels):
+{
+  "0": 27983,
+  "1": 21494,
+  "2": 19517,
+  "3": 2390,
+  "4": 661
+}
+
+Testing Class Distribution (Original Labels):
+{
+  "0": 11136,
+  "1": 3412,
+  "2": 2811,
+  "3": 463,
+  "4": 185,
+  "-1": 5
+}
+
+Test Set Evaluation Metrics:
+---------------------------
+Overall Accuracy: 0.8632
+Macro Average F1-Score: 0.7337
+Weighted Average F1-Score: 0.8554
+
+Per-Class Metrics:
+------------------
+                   precision    recall  f1-score   support
+
+           Normal       0.87      0.97      0.92     11136
+   Cell Imbalance       0.78      0.57      0.66      3412
+        Weak Cell       0.94      0.83      0.88      2752
+ Overvoltage Risk       0.76      0.85      0.80       463
+Undervoltage Risk       0.53      0.33      0.41       185
+
+         accuracy                           0.86     17948
+        macro avg       0.78      0.71      0.73     17948
+     weighted avg       0.86      0.86      0.86     17948
+

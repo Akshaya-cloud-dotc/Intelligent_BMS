@@ -1,0 +1,15 @@
+[Unit]
+Description=BMS Dashboard Watchdog Service
+After=bms-bluetooth.service bms-cloudflare.service
+
+[Service]
+Type=simple
+User=raspi
+Environment=PYTHONUNBUFFERED=1
+WorkingDirectory=/home/raspi/bms_project/CLEANED DATA SETS
+ExecStart=/bin/bash -c 'source venv/bin/activate && python watchdog.py'
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

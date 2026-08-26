@@ -1,0 +1,6 @@
+{
+    "critical_threshold_raw": -0.5906900343917785,
+    "false_positive_rate": 0.01,
+    "true_positive_rate": 0.0308,
+    "description": "If IsolationForest.score_samples() < critical_threshold_raw, flag as UNKNOWN_FAULT_OOD."
+}

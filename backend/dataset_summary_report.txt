@@ -1,0 +1,18 @@
+BMS ML Training Dataset Summary Report
+======================================
+
+Total Combined Raw Row Count: 164860 unique rows (from 198185 total rows loaded)
+Final Training Target Dataset Size: 200000 rows
+
+Row distribution by split:
+  - TRAIN: 140000 rows
+  - VAL  : 30000 rows
+  - TEST : 30000 rows
+
+Class-wise Row Count breakdown:
+  - Normal                : 100000 rows (Real Healthy Data)
+  - Cell Imbalance        : 20000 rows (Reliable Physics-Based Synthetic Faults)
+  - Weak Cell             : 20000 rows (Reliable Physics-Based Synthetic Faults)
+  - Overvoltage Risk      : 20000 rows (Reliable Physics-Based Synthetic Faults)
+  - Undervoltage Risk     : 20000 rows (Reliable Physics-Based Synthetic Faults)
+  - Overtemperature Risk  : 20000 rows (Reliable Physics-Based Synthetic Faults)

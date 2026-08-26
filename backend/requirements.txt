@@ -1,0 +1,12 @@
+Flask
+Flask-Cors
+pandas
+numpy
+joblib
+xgboost
+scikit-learn
+pdfplumber
+python-dotenv
+psycopg2-binary
+gunicorn
+openpyxl

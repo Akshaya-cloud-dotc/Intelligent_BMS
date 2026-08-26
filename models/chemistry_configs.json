@@ -1,0 +1,69 @@
+{
+  "presets": [
+    {
+      "name": "Samsung 18650 NMC",
+      "manufacturer": "Samsung SDI",
+      "cell_model": "INR18650-30Q",
+      "chemistry": "NMC",
+      "nominal_voltage": 3.6,
+      "maximum_voltage": 4.2,
+      "minimum_voltage": 2.5,
+      "nominal_capacity": 3000,
+      "standard_charge_current": 1.5,
+      "maximum_continuous_discharge_current": 15.0,
+      "discharge_temperature_max": 75.0,
+      "discharge_temperature_min": -20.0,
+      "charge_temperature_max": 50.0,
+      "charge_temperature_min": 0.0
+    },
+    {
+      "name": "CATL LFP",
+      "manufacturer": "CATL",
+      "cell_model": "3.2V 100Ah LFP",
+      "chemistry": "LiFePO4",
+      "nominal_voltage": 3.2,
+      "maximum_voltage": 3.65,
+      "minimum_voltage": 2.5,
+      "nominal_capacity": 100000,
+      "standard_charge_current": 50.0,
+      "maximum_continuous_discharge_current": 100.0,
+      "discharge_temperature_max": 60.0,
+      "discharge_temperature_min": -20.0,
+      "charge_temperature_max": 55.0,
+      "charge_temperature_min": 0.0
+    },
+    {
+      "name": "Panasonic NCR18650",
+      "manufacturer": "Panasonic",
+      "cell_model": "NCR18650B",
+      "chemistry": "NCA",
+      "nominal_voltage": 3.6,
+      "maximum_voltage": 4.2,
+      "minimum_voltage": 2.5,
+      "nominal_capacity": 3350,
+      "standard_charge_current": 1.625,
+      "maximum_continuous_discharge_current": 4.875,
+      "discharge_temperature_max": 60.0,
+      "discharge_temperature_min": -20.0,
+      "charge_temperature_max": 45.0,
+      "charge_temperature_min": 0.0
+    },
+    {
+      "name": "LG M50",
+      "manufacturer": "LG Energy Solution",
+      "cell_model": "INR21700-M50",
+      "chemistry": "NMC",
+      "nominal_voltage": 3.63,
+      "maximum_voltage": 4.2,
+      "minimum_voltage": 2.5,
+      "nominal_capacity": 5000,
+      "standard_charge_current": 1.455,
+      "maximum_continuous_discharge_current": 7.275,
+      "discharge_temperature_max": 60.0,
+      "discharge_temperature_min": -30.0,
+      "charge_temperature_max": 50.0,
+      "charge_temperature_min": 0.0
+    }
+  ],
+  "custom": []
+}

@@ -1,0 +1,21 @@
+[Unit]
+Description=BMS Main Application Service
+After=network-online.target bluetooth.target
+Wants=network-online.target bluetooth.target
+
+[Service]
+Type=simple
+User=raspi
+WorkingDirectory=[PUT_PROJECT_FOLDER_PATH_HERE]
+# Delay start by 15 seconds to ensure Bluetooth and network hardware are fully ready
+ExecStartPre=/bin/sleep 15
+# Execute the program in the Python environment
+ExecStart=[PUT_THE_COMMAND_I_USE_TO_RUN_IT_MANUALLY_HERE]
+Restart=always
+RestartSec=5
+# Output logs to verify execution
+StandardOutput=append:[PUT_PROJECT_FOLDER_PATH_HERE]/main_system.log
+StandardError=append:[PUT_PROJECT_FOLDER_PATH_HERE]/main_system.log
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,16 @@
+[Unit]
+Description=BMS Dashboard Cloudflare Tunnel Service
+After=bms-backend.service
+Requires=bms-backend.service
+
+[Service]
+Type=simple
+User=raspi
+Environment=PYTHONUNBUFFERED=1
+WorkingDirectory=/home/raspi/bms_project/CLEANED DATA SETS
+ExecStart=/usr/local/bin/cloudflared tunnel --url http://127.0.0.1:5000
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

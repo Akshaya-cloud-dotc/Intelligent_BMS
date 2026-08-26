@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Battery Pack Configurator Dashboard</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="background-blobs">
+        <div class="blob blob-1"></div>
+        <div class="blob blob-2"></div>
+        <div class="blob blob-3"></div>
+    </div>
+
+    <main class="dashboard-container">
+        <header class="dashboard-header">
+            <h1>Battery Pack Configurator</h1>
+            <p>Upload a cell datasheet to calculate pack thresholds</p>
+        </header>
+
+        <section class="upload-section glass-panel">
+            <div class="upload-box" id="uploadBox">
+                <div class="upload-icon">
+                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                        <polyline points="17 8 12 3 7 8"></polyline>
+                        <line x1="12" y1="3" x2="12" y2="15"></line>
+                    </svg>
+                </div>
+                <h2>Upload Cell Datasheet</h2>
+                <p>Drag and drop your PDF or click to browse</p>
+                <input type="file" id="fileInput" accept=".pdf, .xlsx, .xls, .csv" hidden>
+            </div>
+            <div id="fileInfo" class="file-info hidden">
+                <span id="fileName"></span>
+                <button id="removeFileBtn" class="btn-icon">×</button>
+            </div>
+        </section>
+
+        <section class="configuration-section glass-panel">
+            <h2>Pack Configuration</h2>
+            <div class="input-group-row">
+                <div class="input-group">
+                    <label for="seriesInput">Cells in Series (S)</label>
+                    <input type="number" id="seriesInput" min="1" value="1" placeholder="e.g. 14">
+                </div>
+                <div class="input-group">
+                    <label for="parallelInput">Cells in Parallel (P)</label>
+                    <input type="number" id="parallelInput" min="1" value="1" placeholder="e.g. 4">
+                </div>
+            </div>
+        </section>
+
+        <section class="results-section">
+            <div class="results-grid">
+                <!-- Cell Parameters (Simulated from Datasheet) -->
+                <div class="result-card glass-panel cell-data">
+                    <h3>Extracted Cell Parameters</h3>
+                    <div class="parameter">
+                        <span class="label">Nominal Voltage</span>
+                        <span class="value" id="cellVoltage">-- V</span>
+                    </div>
+                    <div class="parameter">
+                        <span class="label">Max Voltage</span>
+                        <span class="value" id="cellMaxVoltage">-- V</span>
+                    </div>
+                    <div class="parameter">
+                        <span class="label">Max Current</span>
+                        <span class="value" id="cellMaxCurrent">-- A</span>
+                    </div>
+                    <div class="parameter">
+                        <span class="label">Max Temperature</span>
+                        <span class="value" id="cellMaxTemp">-- °C</span>
+                    </div>
+                    <div class="status-overlay" id="cellDataOverlay">
+                        <p>Upload a datasheet to extract parameters</p>
+                    </div>
+                </div>
+
+                <!-- Pack Thresholds -->
+                <div class="result-card glass-panel pack-data">
+                    <h3>Pack Fault Thresholds</h3>
+                    <div class="parameter highlight overvoltage">
+                        <span class="label">Overvoltage Threshold</span>
+                        <span class="value" id="packOvervoltage">-- V</span>
+                    </div>
+                    <div class="parameter highlight overcurrent">
+                        <span class="label">Overcurrent Threshold</span>
+                        <span class="value" id="packOvercurrent">-- A</span>
+                    </div>
+                    <div class="parameter highlight overtemp">
+                        <span class="label">Overtemperature Threshold</span>
+                        <span class="value" id="packOvertemp">-- °C</span>
+                    </div>
+                    <div class="status-overlay" id="packDataOverlay">
+                        <p>Awaiting cell parameters</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+    <script src="script.js"></script>
+</body>
+</html>

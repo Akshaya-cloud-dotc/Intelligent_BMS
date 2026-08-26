@@ -1,0 +1,15 @@
+[Unit]
+Description=BMS Dashboard Backend Service
+After=network.target
+
+[Service]
+Type=simple
+User=raspi
+Environment="PYTHONUNBUFFERED=1" "LEARNING_INTERVAL=600"
+WorkingDirectory=/home/raspi/bms_project/CLEANED DATA SETS
+ExecStart=/bin/bash -c 'source venv/bin/activate && python bms_dashboard_backend.py'
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

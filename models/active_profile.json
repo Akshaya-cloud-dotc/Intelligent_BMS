@@ -1,0 +1,10 @@
+{
+    "chemistry_name": "LG Energy Solution INR21700 M50 (Li-ion NMC)",
+    "thresholds": {
+        "v_max": 4.2,
+        "v_min": 2.5,
+        "temp_max": -20.0,
+        "i_max_discharge": 7.275,
+        "i_max_charge": 0.05
+    }
+}

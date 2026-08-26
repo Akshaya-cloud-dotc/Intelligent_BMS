@@ -1,0 +1,2139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI-PBMS · Live BMS Monitor · Team ANS_4X</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#F6F4FB;color:#5B5470;padding:1.25rem}
+
+/* ── Header ── */
+.hdr{margin-bottom:1rem;border-bottom:1px solid #E8E2F0;padding-bottom:.9rem;display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:10px}
+.hdr-brand{font-size:11px;font-weight:600;color:#8E7FB0;letter-spacing:.08em;text-transform:uppercase;margin-bottom:5px}
+.hdr-title{font-size:20px;font-weight:600;color:#3D3654}
+.hdr-sub{font-size:12px;color:#9B92AE;margin-top:5px}
+.live-badge{display:inline-flex;align-items:center;gap:8px;font-size:12px;font-weight:600;padding:7px 14px;border-radius:20px;background:#E0F2E5;color:#5A9670}
+.live-dot{width:9px;height:9px;border-radius:50%;background:#8EC79F;animation:pulse 1.4s infinite}
+.live-badge.offline{background:#FBE0E0;color:#B05656}
+.live-badge.offline .live-dot{background:#E08A8A;animation:none}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+
+/* ── Layout ── */
+.grid{display:grid;gap:12px;margin-bottom:12px}
+.g6{grid-template-columns:repeat(6,1fr)}
+.g3{grid-template-columns:repeat(3,1fr)}
+.g2{grid-template-columns:repeat(2,1fr)}
+@media(max-width:1100px){.g6{grid-template-columns:repeat(3,1fr)}}
+@media(max-width:800px){.g3{grid-template-columns:1fr}.g2{grid-template-columns:1fr}}
+@media(max-width:500px){.g6{grid-template-columns:repeat(2,1fr)}}
+
+/* ── Cards & Params ── */
+.param{background:#FFF;border:1px solid #E8E2F0;border-radius:10px;padding:.85rem .9rem}
+.param-lbl{font-size:10.5px;color:#9B92AE;margin-bottom:5px;text-transform:uppercase;letter-spacing:.04em}
+.param-val{font-size:23px;font-weight:700;line-height:1}
+.param-unit{font-size:12px;font-weight:500;color:#A89FB8}
+.param-bar{height:3px;background:#E8E2F0;border-radius:2px;margin-top:8px;overflow:hidden}
+.param-fill{height:100%;border-radius:2px;transition:width .4s}
+.card{background:#FFF;border:1px solid #E8E2F0;border-radius:12px;padding:1.1rem 1.25rem;margin-bottom:12px}
+.card-title{font-size:13px;font-weight:600;color:#3D3654;margin-bottom:12px;display:flex;align-items:center;gap:6px}
+
+/* ── Cell Grid ── */
+.cell-grid{display:grid;grid-template-columns:repeat(8,1fr);gap:8px}
+@media(max-width:800px){.cell-grid{grid-template-columns:repeat(4,1fr)}}
+.cell{border-radius:8px;padding:.7rem .4rem;text-align:center;border:1px solid}
+.cell-id{font-size:10px;opacity:.85;margin-bottom:4px}
+.cell-v{font-size:15px;font-weight:700}
+
+/* ── Fault Grid ── */
+.fault-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:10px}
+@media(max-width:900px){.fault-grid{grid-template-columns:repeat(3,1fr)}}
+@media(max-width:800px){.fault-grid{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:800px){
+  #predictionDetailsPanel {
+    border-left: none !important;
+    padding-left: 0 !important;
+    border-top: 1px solid #E8E2F0;
+    padding-top: 15px;
+    margin-top: 10px;
+  }
+}
+.fault{border-radius:10px;padding:1rem;border:1px solid}
+.fault-name{font-size:12px;font-weight:600;margin-bottom:8px}
+.fault-status{font-size:18px;font-weight:700;margin-bottom:4px}
+.fault-conf{font-size:11px;opacity:.9}
+.conf-track{height:5px;background:rgba(91,84,112,.12);border-radius:3px;margin-top:8px;overflow:hidden}
+.conf-fill{height:100%;border-radius:3px;transition:width .4s}
+
+/* ── Status & Mode ── */
+.mode-badge{display:inline-flex;align-items:center;gap:8px;font-size:14px;font-weight:700;padding:8px 18px;border-radius:10px}
+.status-banner{border-radius:10px;padding:1rem 1.25rem;margin-bottom:12px;display:flex;align-items:center;gap:14px;font-size:15px;font-weight:600}
+.status-dot{width:14px;height:14px;border-radius:50%;flex-shrink:0;animation:pulse 1.6s infinite}
+
+/* ── Prediction Panel ── */
+.pred-panel{background:#FFF;border:1px solid #E8E2F0;border-radius:12px;padding:1.1rem 1.25rem;margin-bottom:12px}
+.pred-title{font-size:13px;font-weight:600;color:#3D3654;margin-bottom:14px}
+.pred-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
+@media(max-width:600px){.pred-grid{grid-template-columns:1fr}}
+.pred-box{border-radius:10px;padding:1rem 1.1rem;border:1px solid}
+.pred-label{font-size:10px;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;font-weight:600}
+.pred-time{font-size:28px;font-weight:700;line-height:1;margin-bottom:4px}
+.pred-sub{font-size:11px;margin-top:4px;opacity:.85}
+.pred-bar-wrap{margin-top:10px}
+.pred-bar-track{height:6px;background:rgba(91,84,112,.12);border-radius:4px;overflow:hidden;margin-top:4px}
+.pred-bar-fill{height:100%;border-radius:4px;transition:width .6s ease}
+.pred-eta-row{display:flex;justify-content:space-between;font-size:10px;margin-top:4px;opacity:.7}
+.history-table{width:100%;border-collapse:collapse;font-size:11px;margin-top:8px}
+.history-table th{color:#9B92AE;font-weight:600;text-align:left;padding:4px 6px;border-bottom:1px solid #E8E2F0}
+.history-table td{padding:4px 6px;border-bottom:1px solid #F0EBF8;color:#5B5470}
+.history-table tr:last-child td{border-bottom:none}
+
+/* ── Time fix badge ── */
+.ts-fix{font-size:10px;background:#E8E2F0;border-radius:6px;padding:2px 7px;color:#8E7FB0;margin-left:8px;font-weight:500}
+
+/* ── Row Count (pop) cards ── */
+.rowcount-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
+@media(max-width:1100px){.rowcount-grid{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:800px){.rowcount-grid{grid-template-columns:1fr}}
+.rc-card{border-radius:14px;padding:1.1rem 1.3rem;border:1px solid;position:relative;overflow:hidden}
+.rc-live{background:linear-gradient(135deg,#E6F6EC 0%,#F2FBF5 100%);border-color:#B6E3C6}
+.rc-hist{background:linear-gradient(135deg,#EAF1FB 0%,#F3F0FC 100%);border-color:#C7D6F0}
+.rc-top{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.rc-icon{font-size:16px}
+.rc-tag{font-size:11px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:#6E6488}
+.rc-num{font-size:46px;font-weight:800;line-height:1;color:#3D3654;font-variant-numeric:tabular-nums}
+.rc-live .rc-num{color:#3E8C5C}
+.rc-num-sm{font-size:34px}
+.rc-cap{font-size:11px;color:#9B92AE;margin-top:6px}
+.rc-split{display:flex;align-items:stretch;gap:14px}
+.rc-half{flex:1}
+.rc-divider{width:1px;background:#D5DBEC}
+.rc-hist .rc-half:first-child .rc-num{color:#4A7BB0}
+.rc-hist .rc-half:last-child .rc-num{color:#8F8AA6}
+
+.footer{margin-top:1.5rem;padding-top:1rem;border-top:1px solid #E8E2F0;font-size:11px;color:#A89FB8;text-align:center}
+
+/* ── Alert Pulsing dot & Popups CSS ── */
+.pulse-red-dot {
+  width: 12px; height: 12px;
+  border-radius: 50%;
+  background-color: #E08A8A;
+  box-shadow: 0 0 0 0 rgba(224, 138, 138, 0.7);
+  animation: pulseRed 1.2s infinite;
+  display: inline-block;
+  vertical-align: middle;
+}
+@keyframes pulseRed {
+  0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(224, 138, 138, 0.7); }
+  70% { transform: scale(1); box-shadow: 0 0 0 10px rgba(224, 138, 138, 0); }
+  100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(224, 138, 138, 0); }
+}
+
+.alert-modal-overlay {
+  position: fixed;
+  top: 0; left: 0; width: 100%; height: 100%;
+  background: rgba(0,0,0,0.6);
+  display: none;
+  align-items: center; justify-content: center;
+  z-index: 10000;
+  backdrop-filter: blur(2px);
+}
+.alert-modal-content {
+  background: #FFF;
+  border: 3px solid #E08A8A;
+  border-radius: 14px;
+  width: 90%; max-width: 500px;
+  padding: 1.5rem;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+  animation: alertPopIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+@keyframes alertPopIn {
+  from { transform: scale(0.8); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+.alert-modal-header {
+  display: flex; align-items: center; justify-content: space-between;
+  font-size: 18px; font-weight: 800; color: #B05656;
+  border-bottom: 2px solid #FBE0E0;
+  padding-bottom: 10px; margin-bottom: 12px;
+}
+.alert-modal-body {
+  font-size: 13px; line-height: 1.5; color: #3D3654;
+  display: flex; flex-direction: column; gap: 8px;
+  margin-bottom: 15px;
+}
+.alert-modal-footer {
+  display: flex; justify-content: flex-end; gap: 10px;
+}
+.alert-btn {
+  border: none; border-radius: 6px;
+  padding: 8px 16px; font-weight: 700; font-size: 12px;
+  cursor: pointer; transition: all 0.2s;
+  font-family: inherit;
+}
+.alert-btn-ack { background: #B05656; color: #FFF; }
+.alert-btn-ack:hover { background: #964242; }
+.alert-btn-close { background: #E8E2F0; color: #5B5470; }
+.alert-btn-close:hover { background: #D6CFE2; }
+</style>
+</head>
+<body>
+
+<!-- ── Header ── -->
+<div class="hdr">
+  <div>
+    <div class="hdr-brand">Caterpillar Tech Challenge 2026 · Team ANS_4X · PSGiTech</div>
+    <div class="hdr-title">AI-PBMS · Live BMS Monitor <span style="font-size:13px;color:#8D82A9;font-weight:500">+ Predictive Engine</span></div>
+    <div class="hdr-sub" id="hdrSub">Connecting to Flask backend (/api/telemetry)…</div>
+  </div>
+  <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+      <button class="live-badge" id="enableSoundBtn" onclick="initAudio()" style="background:#EAF1FB;color:#4A7BB0;border:1px solid #8EC5E8;cursor:pointer;font-family:inherit;font-weight:600;display:inline-flex;align-items:center;">🔊 Enable Alert Sound</button>
+      <button class="live-badge" id="muteBtn" onclick="toggleMute()" style="display:none;background:#FAF9FC;color:#5B5470;border:1px solid #E8E2F0;cursor:pointer;font-family:inherit;font-weight:600;align-items:center;">🔊 Muted: OFF</button>
+      <div class="live-badge" id="profileBadge" style="background:#F0EBF8;color:#5B5470;border:1px solid #D6CFE2;"><span id="profileText">Profile: Scanning...</span></div>
+      <div class="live-badge" id="alertBadge" style="background:#E0F2E5;color:#5A9670;"><span class="live-dot" id="alertDot" style="background:#8EC79F;animation:none;"></span><span id="alertBadgeText">System: NORMAL</span></div>
+      <div class="live-badge" id="liveBadge"><span class="live-dot"></span><span id="liveText">Connecting…</span></div>
+      <div class="live-badge" id="btBadge" style="background:#FBE0E0;color:#B05656;"><span class="live-dot" id="btDot" style="background:#E08A8A;animation:none;"></span><span id="btText">Bluetooth Disconnected</span></div>
+    </div>
+    <div style="font-size:10px;color:#9B92AE">Last BMS Update: <span id="lastBmsUpdate" style="color:#5B5470;font-weight:600">—</span> · Pi time: <span id="piTime" style="color:#5B5470;font-weight:600">—</span> · Local: <span id="localTime" style="color:#5B5470;font-weight:600">—</span></div>
+  </div>
+</div>
+
+<!-- ── Status Banner ── -->
+<div class="status-banner" id="statusBanner" style="background:#E0F2E5">
+  <span class="status-dot" id="statusDot" style="background:#8EC79F"></span>
+  <span id="statusText" style="color:#5A9670">Waiting for data…</span>
+  <span style="margin-left:auto;font-size:12px;font-weight:500;color:#9B92AE" id="tsLabel"></span>
+</div>
+
+<!-- ── Alert Panel (Dynamic Alert System) ── -->
+<div id="mainAlertPanel" class="card" style="display: none !important; transition: all 0.3s ease; padding: 1.25rem; border-color: #B6E3C6; border-width: 1.5px; background: #F4FBF7; margin-bottom: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.02);">
+  <div id="alertHeader" style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; flex-wrap:wrap; gap:8px;">
+    <div style="display:flex; align-items:center; gap:10px;">
+      <span id="alertStatusBadge" style="font-size: 11px; font-weight: 800; padding: 3px 10px; border-radius: 12px; text-transform: uppercase; background:#8EC79F; color:#FFF;">NORMAL</span>
+      <span id="alertSummaryText" style="font-size: 14px; font-weight: 700; color: #3D3654; display:flex; align-items:center; gap:6px;">
+        Battery system operating within safe limits.
+      </span>
+    </div>
+    <button class="alert-btn" id="ackAlertBtn" onclick="acknowledgeActiveAlerts()" style="background:#E8E2F0; color:#5B5470; display:none; align-items:center; gap:4px; padding:6px 12px;">✔️ Acknowledge Alert</button>
+  </div>
+  <div id="activeAlertsList" style="display: flex; flex-direction: column; gap: 10px;">
+    <div style="font-size: 12px; color: #5A9670; padding: 5px 0; display:flex; align-items:center; gap:6px;">
+       ✓ Battery behavior is safe. No stress predictor, fault predictor, or abnormal battery condition detected.
+    </div>
+  </div>
+</div>
+
+<!-- ── Data Logging Row Counts ── -->
+<div class="rowcount-grid">
+  <!-- LIVE WINDOW (sliding 60-row inference buffer) -->
+  <div class="rc-card rc-live">
+    <div class="rc-top">
+      <span class="rc-tag">INFERENCE WINDOW</span>
+    </div>
+    <div class="rc-num" id="liveRows">—</div>
+    <div class="rc-cap" id="liveRowsCap">rows buffered · /60 to predict</div>
+  </div>
+
+  <!-- HISTORIC / SESSION TOTALS -->
+  <div class="rc-card rc-hist">
+    <div class="rc-top">
+      <span class="rc-tag">SESSION TOTALS</span>
+    </div>
+    <div class="rc-split">
+      <div class="rc-half">
+        <div class="rc-num rc-num-sm" id="histUnfilteredRows">—</div>
+        <div class="rc-cap">rows processed · since reset</div>
+        <div style="margin-top:8px"><a href="/api/download_raw_log" class="ts-fix" style="margin-left:0;text-decoration:none;display:inline-block">CSV Raw</a></div>
+      </div>
+      <div class="rc-divider"></div>
+      <div class="rc-half">
+        <div class="rc-num rc-num-sm" id="histFilteredRows">—</div>
+        <div class="rc-cap" id="histFilteredSub">avg ΔV across session</div>
+        <div style="margin-top:8px"><a href="/api/download_filtered_log" class="ts-fix" style="margin-left:0;text-decoration:none;display:inline-block">CSV Filtered</a></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ── Layer 1: Real-Time Parameters ── -->
+<div class="card">
+  <div class="card-title">Monitored Parameters — Real-Time Sensing (Layer 1)</div>
+  <div class="grid g6" id="paramGrid" style="margin-bottom:0"></div>
+</div>
+
+<!-- ── Charge State + ΔV + dV/dt ── -->
+<div class="grid g3">
+  <div class="card" style="margin-bottom:0">
+    <div class="card-title">Charge / Discharge State</div>
+    <div id="chgBadgeWrap" style="text-align:center;padding:.5rem 0"></div>
+    <div id="modeBadgeWrap" style="text-align:center;padding:.4rem 0 0"></div>
+  </div>
+  <div class="param" style="margin-bottom:0">
+    <div class="param-lbl">ΔV — Cell Imbalance</div>
+    <div class="param-val" id="dvVal">—</div>
+    <div class="param-bar"><div class="param-fill" id="dvBar"></div></div>
+    <div style="font-size:10px;margin-top:5px" id="dvStatus"></div>
+  </div>
+  <div class="param" style="margin-bottom:0">
+    <div class="param-lbl">dV/dt — Rate of Rise</div>
+    <div class="param-val" id="dvdtVal">—</div>
+    <div class="param-bar"><div class="param-fill" id="dvdtBar"></div></div>
+    <div style="font-size:10px;color:#A89FB8;margin-top:5px">6-second window trend</div>
+  </div>
+</div>
+
+<!-- ── PREDICTION PANEL ── -->
+<div class="pred-panel" style="margin-top:12px">
+  <div class="pred-title">🧠 Charge / Discharge Prediction — Smoothed Live SOC-Rate</div>
+  <div class="pred-grid">
+
+    <!-- Charge Prediction -->
+    <div class="pred-box" id="chgPredBox" style="background:#EEF6FF;border-color:#B8D8F0">
+      <div class="pred-label" style="color:#5589B0">Charge Completion</div>
+      <div class="pred-time" id="chgPredTime" style="color:#3D6A8A">—</div>
+      <div class="pred-sub" id="chgPredSub" style="color:#5589B0">Estimating…</div>
+      <div class="pred-bar-wrap">
+        <div style="display:flex;justify-content:space-between;font-size:10px;color:#8AAFC8">
+          <span id="chgSocNow">SOC now: —</span><span id="chgSocTarget">Target: 96%</span>
+        </div>
+        <div class="pred-bar-track">
+          <div class="pred-bar-fill" id="chgPredBar" style="background:#5589B0;width:0%"></div>
+        </div>
+        <div class="pred-eta-row">
+          <span id="chgEtaLeft">Remaining: —</span>
+          <span id="chgEtaAt">ETA: —</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Discharge Prediction -->
+    <div class="pred-box" id="disPredBox" style="background:#FFF3EC;border-color:#F0C8A0">
+      <div class="pred-label" style="color:#C8814D">Discharge Completion</div>
+      <div class="pred-time" id="disPredTime" style="color:#8A5020">—</div>
+      <div class="pred-sub" id="disPredSub" style="color:#C8814D">Estimating…</div>
+      <div class="pred-bar-wrap">
+        <div style="display:flex;justify-content:space-between;font-size:10px;color:#D0986A">
+          <span id="disSocNow">SOC now: —</span><span id="disSocTarget">Cutoff: 39%</span>
+        </div>
+        <div class="pred-bar-track">
+          <div class="pred-bar-fill" id="disPredBar" style="background:#C8814D;width:0%"></div>
+        </div>
+        <div class="pred-eta-row">
+          <span id="disEtaLeft">Remaining: —</span>
+          <span id="disEtaAt">ETA: —</span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ── Cycle Health Analytics ── -->
+<!-- ── Cycle Health Analytics (Prominent Panel) ── -->
+<div class="card" id="cycleAnalyticsCard" style="background:#FFF; border-color:#8D82A9; border-width:1.5px; box-shadow: 0 4px 20px rgba(141, 130, 169, 0.1);">
+  <div class="card-title" style="font-size:16px; color:#3D3654; border-bottom:1px solid #E8E2F0; padding-bottom:8px; margin-bottom:16px; display:flex; justify-content:space-between; align-items:center;">
+    <span>🔄 Cycle Health Analysis (Historical Comparison Engine)</span>
+    <div style="font-size:11px; color:#8E7FB0; font-weight:normal;">Growing historical comparison (Cycle N vs Avg of Cycles 1 to N-1)</div>
+  </div>
+
+  <!-- Summary Row: Likely Fault, Confidence, Deviation, Trend -->
+  <div style="display:grid; grid-template-columns:repeat(5, 1fr); gap:12px; margin-bottom:20px; background:#FAF9FC; border:1px solid #E8E2F0; border-radius:12px; padding:1rem;">
+    <div title="Active Cycle ID: The sequence number of the current charge/discharge cycle.">
+      <div style="font-size:10px; color:#9B92AE; text-transform:uppercase; letter-spacing:0.04em; margin-bottom:4px; cursor:help;">Active Cycle ID ℹ️</div>
+      <div style="font-size:18px; font-weight:700; color:#3D3654;" id="cycleOverviewId">#0</div>
+      <div style="font-size:11px; color:#5B5470; margin-top:2px;" id="cycleOverviewTime" title="Elapsed Cycle Duration: Time elapsed since the active cycle started.">Elapsed: 0s</div>
+    </div>
+    <div title="Likely Fault: Machine learning prediction of the most probable fault signature based on cycle behavior.">
+      <div style="font-size:10px; color:#9B92AE; text-transform:uppercase; letter-spacing:0.04em; margin-bottom:4px; cursor:help;">Likely Fault ℹ️</div>
+      <div style="font-size:16px; font-weight:700;" id="cycleOverviewLikelyFault">None</div>
+      <div style="font-size:11px; color:#9B92AE; margin-top:2px;">Predicted anomaly</div>
+    </div>
+    <div title="Confidence Score: The ML model and system's confidence in the Likely Fault diagnosis.">
+      <div style="font-size:10px; color:#9B92AE; text-transform:uppercase; letter-spacing:0.04em; margin-bottom:4px; cursor:help;">Confidence ℹ️</div>
+      <div style="font-size:16px; font-weight:700;" id="cycleOverviewConfidence">—</div>
+      <div style="font-size:11px; color:#9B92AE; margin-top:2px;" id="cycleOverviewConfidenceLabel">Awaiting data</div>
+    </div>
+    <div title="Deviation Level: Indication of how much the current cycle differs from the average of all completed past cycles.">
+      <div style="font-size:10px; color:#9B92AE; text-transform:uppercase; letter-spacing:0.04em; margin-bottom:4px; cursor:help;">Deviation Level ℹ️</div>
+      <div style="font-size:16px; font-weight:700;" id="cycleOverviewDeviation">Normal deviation</div>
+      <div style="font-size:11px; color:#9B92AE; margin-top:2px;">Cycle drift metric</div>
+    </div>
+    <div title="Behavior Trend: Long-term performance trajectory of the battery across all completed cycles (Stable / Improving / Degrading).">
+      <div style="font-size:10px; color:#9B92AE; text-transform:uppercase; letter-spacing:0.04em; margin-bottom:4px; cursor:help;">Behavior Trend ℹ️</div>
+      <div style="font-size:16px; font-weight:700;" id="cycleOverviewTrend">Stable</div>
+      <div style="font-size:11px; color:#9B92AE; margin-top:2px;">Performance drift</div>
+    </div>
+  </div>
+
+  <!-- 3-Column Condition Analysis -->
+  <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:16px;" id="cycleConditionGrid">
+    
+    <!-- Column 1: Charging Condition Analysis -->
+    <div id="cycleColCharging" style="background:#FFF; border:1px solid #E8E2F0; border-radius:12px; padding:1.25rem; display:flex; flex-direction:column; gap:12px; transition:all 0.3s;">
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <div>
+          <span style="font-size:13px; font-weight:700; color:#5589B0;" title="Charging State: Active when current is negative (energy flowing into pack).">⚡ CHARGING</span>
+          <div style="font-size:9.5px; color:#9B92AE; margin-top:2px;">Active when current &lt; -0.05A (flowing IN)</div>
+        </div>
+        <span id="cycleStatusBadgeCharging" style="font-size:10px; font-weight:800; padding:2px 8px; border-radius:20px; background:#E8E2F0; color:#9B92AE;">INACTIVE</span>
+      </div>
+      
+      <!-- Expected vs Actual SOC -->
+      <div style="background:#FAF9FC; border-radius:8px; padding:10px; border:1px solid #F0EBF8;">
+        <div style="font-size:10.5px; color:#9B92AE; text-transform:uppercase; margin-bottom:4px;">Expected vs Actual SOC</div>
+        <div style="font-size:12px; font-weight:600; color:#3D3654;" id="cycleChargingSocText">No charge cycle active</div>
+        <div class="pred-bar-track" style="margin-top:6px; height:6px;">
+          <div style="position:relative; height:100%; width:100%;">
+            <div id="cycleChargingActualSocBar" style="position:absolute; top:0; left:0; height:100%; border-radius:4px; background:#5589B0; width:0%;"></div>
+            <div id="cycleChargingExpectedSocMarker" style="position:absolute; top:-3px; width:4px; height:12px; background:#C8814D; border-radius:2px; left:0%; display:none;"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Detailed Comparison Metrics -->
+      <div style="background:#FAF9FC; border-radius:8px; padding:10px; border:1px solid #F0EBF8;">
+        <div style="font-size:10.5px; color:#9B92AE; text-transform:uppercase; margin-bottom:6px;">Detailed Comparison Metrics</div>
+        <div id="cycleChargingMetrics" style="display:flex; flex-direction:column; gap:6px; font-size:11px;">
+          <div style="text-align:center; color:#9B92AE; padding:4px 0;">No active charging data</div>
+        </div>
+      </div>
+
+      <!-- Active Risks -->
+      <div>
+        <div style="font-size:10.5px; color:#9B92AE; text-transform:uppercase; margin-bottom:6px;">Active Risks</div>
+        <div id="cycleChargingRisks" style="display:flex; flex-wrap:wrap; gap:6px;">
+          <span style="font-size:11px; background:#E0F2E5; color:#5A9670; padding:3px 8px; border-radius:6px; font-weight:600;">No active risks</span>
+        </div>
+      </div>
+
+      <!-- Explanation / Insight -->
+      <div style="font-size:11px; line-height:1.4; color:#5B5470; margin-top:auto; padding-top:8px; border-top:1px dashed #E8E2F0;" id="cycleChargingInsight">
+        Waiting for charge cycle data to compare with history...
+      </div>
+    </div>
+
+    <!-- Column 2: Discharging Condition Analysis -->
+    <div id="cycleColDischarging" style="background:#FFF; border:1px solid #E8E2F0; border-radius:12px; padding:1.25rem; display:flex; flex-direction:column; gap:12px; transition:all 0.3s;">
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <div>
+          <span style="font-size:13px; font-weight:700; color:#C8814D;" title="Discharging State: Active when current is positive (load drawing energy from pack).">📉 DISCHARGING</span>
+          <div style="font-size:9.5px; color:#9B92AE; margin-top:2px;">Active when current &gt; 0.05A (load drawing OUT)</div>
+        </div>
+        <span id="cycleStatusBadgeDischarging" style="font-size:10px; font-weight:800; padding:2px 8px; border-radius:20px; background:#E8E2F0; color:#9B92AE;">INACTIVE</span>
+      </div>
+      
+      <!-- Expected vs Actual Sag -->
+      <div style="background:#FAF9FC; border-radius:8px; padding:10px; border:1px solid #F0EBF8;">
+        <div style="font-size:10.5px; color:#9B92AE; text-transform:uppercase; margin-bottom:4px;">Expected vs Actual Voltage Sag</div>
+        <div style="font-size:12px; font-weight:600; color:#3D3654;" id="cycleDischargingSagText">No discharge cycle active</div>
+        <div class="pred-bar-track" style="margin-top:6px; height:6px;">
+          <div style="position:relative; height:100%; width:100%;">
+            <div id="cycleDischargingActualSagBar" style="position:absolute; top:0; left:0; height:100%; border-radius:4px; background:#C8814D; width:0%;"></div>
+            <div id="cycleDischargingExpectedSagMarker" style="position:absolute; top:-3px; width:4px; height:12px; background:#5589B0; border-radius:2px; left:0%; display:none;"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Detailed Comparison Metrics -->
+      <div style="background:#FAF9FC; border-radius:8px; padding:10px; border:1px solid #F0EBF8;">
+        <div style="font-size:10.5px; color:#9B92AE; text-transform:uppercase; margin-bottom:6px;">Detailed Comparison Metrics</div>
+        <div id="cycleDischargingMetrics" style="display:flex; flex-direction:column; gap:6px; font-size:11px;">
+          <div style="text-align:center; color:#9B92AE; padding:4px 0;">No active discharging data</div>
+        </div>
+      </div>
+
+      <!-- Active Risks -->
+      <div>
+        <div style="font-size:10.5px; color:#9B92AE; text-transform:uppercase; margin-bottom:6px;">Active Risks</div>
+        <div id="cycleDischargingRisks" style="display:flex; flex-wrap:wrap; gap:6px;">
+          <span style="font-size:11px; background:#E0F2E5; color:#5A9670; padding:3px 8px; border-radius:6px; font-weight:600;">No active risks</span>
+        </div>
+      </div>
+
+      <!-- Explanation / Insight -->
+      <div style="font-size:11px; line-height:1.4; color:#5B5470; margin-top:auto; padding-top:8px; border-top:1px dashed #E8E2F0;" id="cycleDischargingInsight">
+        Waiting for discharge cycle data to compare with history...
+      </div>
+    </div>
+
+    <!-- Column 3: Idle / Normal Rest Analysis -->
+    <div id="cycleColIdle" style="background:#FFF; border:1px solid #E8E2F0; border-radius:12px; padding:1.25rem; display:flex; flex-direction:column; gap:12px; transition:all 0.3s;">
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <div>
+          <span style="font-size:13px; font-weight:700; color:#5A9670;" title="Idle / Normal Rest State: Active when pack is at rest with current near zero. Used to verify parameter stability and drift.">💤 IDLE / REST</span>
+          <div style="font-size:9.5px; color:#9B92AE; margin-top:2px;">Active when current near 0A (stability check)</div>
+        </div>
+        <span id="cycleStatusBadgeIdle" style="font-size:10px; font-weight:800; padding:2px 8px; border-radius:20px; background:#E0F2E5; color:#5A9670;">ACTIVE</span>
+      </div>
+      
+      <!-- Rest Stability -->
+      <div style="background:#FAF9FC; border-radius:8px; padding:10px; border:1px solid #F0EBF8;">
+        <div style="font-size:10.5px; color:#9B92AE; text-transform:uppercase; margin-bottom:4px;">Rest State Stability</div>
+        <div style="font-size:12px; font-weight:600; color:#5A9670;" id="cycleIdleStabilityText">All cells stable</div>
+        <div style="display:flex; justify-content:space-between; font-size:10px; color:#9B92AE; margin-top:6px; border-top:1px solid #E8E2F0; padding-top:4px;">
+          <span>Imbalance: <strong id="cycleIdleImbalanceTrend">Normal</strong></span>
+          <span>Thermal: <strong id="cycleIdleThermalTrend">Normal</strong></span>
+        </div>
+      </div>
+
+      <!-- Detailed Stability Metrics -->
+      <div style="background:#FAF9FC; border-radius:8px; padding:10px; border:1px solid #F0EBF8;">
+        <div style="font-size:10.5px; color:#9B92AE; text-transform:uppercase; margin-bottom:6px;">Detailed Stability Metrics</div>
+        <div id="cycleIdleMetrics" style="display:flex; flex-direction:column; gap:6px; font-size:11px;">
+          <div style="text-align:center; color:#9B92AE; padding:4px 0;">No rest stability data</div>
+        </div>
+      </div>
+
+      <!-- Active Risks -->
+      <div>
+        <div style="font-size:10.5px; color:#9B92AE; text-transform:uppercase; margin-bottom:6px;">Active Risks</div>
+        <div id="cycleIdleRisks" style="display:flex; flex-wrap:wrap; gap:6px;">
+          <span style="font-size:11px; background:#E0F2E5; color:#5A9670; padding:3px 8px; border-radius:6px; font-weight:600;">No active risks</span>
+        </div>
+      </div>
+
+      <!-- Explanation / Insight -->
+      <div style="font-size:11px; line-height:1.4; color:#5B5470; margin-top:auto; padding-top:8px; border-top:1px dashed #E8E2F0;" id="cycleIdleInsight">
+        System is stable with no unusual drift.
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ── Fault / Risk Prediction Details Panel ── -->
+<div class="card" id="predictionDetailsPanel" style="border-color:#E8E2F0; border-width:1.5px;">
+  <div class="card-title" style="font-size:16px; color:#3D3654; border-bottom:1px solid #E8E2F0; padding-bottom:8px; margin-bottom:16px; display:flex; justify-content:space-between; align-items:center;">
+    <span>🚨 Fault Prediction Details</span>
+    <div style="font-size:11px; color:#8E7FB0; font-weight:normal;">Real-time decoupled risk scoring</div>
+  </div>
+
+  <div style="display:grid; grid-template-columns:repeat(4, 1fr); gap:12px;">
+    <!-- Active Condition -->
+    <div style="background:#FAF9FC; border-radius:10px; padding:1.1rem; border:1px solid #E8E2F0;">
+      <div style="font-size:10.5px; color:#9B92AE; text-transform:uppercase; letter-spacing:0.04em; margin-bottom:6px; font-weight:600;">Predicted Anomaly</div>
+      <div id="predCond" style="font-size:18px; font-weight:700; color:#3D3654;">—</div>
+      <div id="predChem" style="font-size:11px; color:#9B92AE; margin-top:4px;">—</div>
+    </div>
+    
+    <!-- 1. Prediction Confidence -->
+    <div style="background:#FAF9FC; border-radius:10px; padding:1.1rem; border:1px solid #E8E2F0;">
+      <div style="font-size:10.5px; color:#9B92AE; text-transform:uppercase; letter-spacing:0.04em; margin-bottom:6px; font-weight:600;" title="Raw output from ML models before physics scaling">1. Prediction Confidence</div>
+      <div id="predConf" style="font-size:18px; font-weight:700; color:#3D3654;">—</div>
+      <div style="font-size:11px; color:#9B92AE; margin-top:4px;">ML Probability Score</div>
+    </div>
+    
+    <!-- 2. Fault Severity -->
+    <div style="background:#FAF9FC; border-radius:10px; padding:1.1rem; border:1px solid #E8E2F0;">
+      <div style="font-size:10.5px; color:#9B92AE; text-transform:uppercase; letter-spacing:0.04em; margin-bottom:6px; font-weight:600;" title="Physics-based scaling derived from sensor readings vs safety limits">2. Fault Severity</div>
+      <div id="predSeverity" style="font-size:18px; font-weight:700; color:#3D3654;">—</div>
+      <div id="predVal" style="font-size:11px; color:#9B92AE; margin-top:4px;">—</div>
+    </div>
+    
+    <!-- 3. Final Risk -->
+    <div style="background:#FAF9FC; border-radius:10px; padding:1.1rem; border:1px solid #E8E2F0;">
+      <div style="font-size:10.5px; color:#9B92AE; text-transform:uppercase; letter-spacing:0.04em; margin-bottom:6px; font-weight:600;" title="Combined metric = (Confidence × Severity) + Time Persistence">3. Final Risk Score</div>
+      <div id="predParam" style="font-size:18px; font-weight:700; color:#3D3654;">—</div>
+      <div id="predLimit" style="font-size:11px; color:#9B92AE; margin-top:4px;">—</div>
+    </div>
+  </div>
+  
+  <div style="background:#FAF9FC; border-radius:10px; padding:1rem; border:1px solid #E8E2F0; margin-top:12px;">
+    <div style="font-size:10.5px; color:#9B92AE; text-transform:uppercase; letter-spacing:0.04em; margin-bottom:6px; font-weight:600;">System Reasoning & Indicators</div>
+    <div id="predReason" style="font-size:13px; color:#5B5470; font-weight:500;">Waiting for live prediction data...</div>
+  </div>
+</div>
+
+<!-- ── Cell Voltages ── -->
+<div class="card">
+  <div class="card-title">Individual Cell Voltages — 8 Cells (V)</div>
+  <div class="cell-grid" id="cellGrid"></div>
+</div>
+
+
+
+<!-- ── Live Trend Chart ── -->
+<div class="card" style="display:none;">
+  <div class="card-title">Live Trend — Last 60 Readings (6-second rolling window)</div>
+  <div style="position:relative;height:240px"><canvas id="trendChart"></canvas></div>
+</div>
+
+<!-- ── Alert History Section ── -->
+<div class="card" style="margin-top: 15px;">
+  <div class="card-title" style="font-size:13px; color:#3D3654; border-bottom:1px solid #E8E2F0; padding-bottom:8px; margin-bottom:12px; display:flex; justify-content:space-between; align-items:center;">
+    <span>📜 System Alert History</span>
+    <div style="font-size:11px; color:#9B92AE; font-weight:normal;">Latest 10 to 20 resolved and triggered events</div>
+  </div>
+  <div style="max-height: 250px; overflow-y: auto;">
+    <table class="history-table" id="alertHistoryTable">
+      <thead>
+        <tr>
+          <th style="padding: 6px;">Timestamp</th>
+          <th style="padding: 6px;">Alert Type</th>
+          <th style="padding: 6px;">Severity</th>
+          <th style="padding: 6px;">Parameter</th>
+          <th style="padding: 6px;">Measured Value</th>
+          <th style="padding: 6px;">Threshold</th>
+          <th style="padding: 6px;">Status / Resolution Time</th>
+        </tr>
+      </thead>
+      <tbody id="alertHistoryBody">
+        <tr>
+          <td colspan="7" style="text-align:center; color:#9B92AE; padding:15px; font-size:12px;">No historical alerts logged in this session.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ── Alert Popup Modal Overlay ── -->
+<div class="alert-modal-overlay" id="alertModalOverlay" style="display: none !important;">
+  <div class="alert-modal-content">
+    <div class="alert-modal-header" id="alertModalHeader">
+      <div style="display:flex; align-items:center; gap:8px;">
+        <span style="font-size: 20px;">⚠️</span>
+        <span id="alertModalTitle">CRITICAL ALERT</span>
+      </div>
+      <span style="cursor:pointer; font-size:18px; font-weight:bold; color:#9B92AE;" onclick="closeAlertModal()">&times;</span>
+    </div>
+    <div class="alert-modal-body" id="alertModalBody">
+      <!-- Dynamic Popup Content -->
+    </div>
+    <div class="alert-modal-footer">
+      <button class="alert-btn alert-btn-ack" onclick="acknowledgeModalAlert()">Acknowledge</button>
+      <button class="alert-btn alert-btn-close" onclick="closeAlertModal()">Close</button>
+    </div>
+  </div>
+</div>
+
+<div class="footer">AI-PBMS · Caterpillar Tech Challenge 2026 · Team ANS_4X · PSGiTech · OV>4.15V · per-cell 3.0–4.2V · ETA from smoothed live SOC-rate</div>
+
+<script>
+// ── Web Audio API Alarm Engine and Alert State ──
+let audioCtx = null;
+let isSoundEnabled = false;
+let isSoundMuted = false;
+let isAcknowledged = false;
+let alarmInterval = null;
+let lastCriticalAlertsJoined = "";
+let lastWarningAlertsJoined = "";
+let modalAlertQueue = [];
+let isModalOpen = false;
+const acknowledgedAlertIds = new Set();
+const previouslyActiveAlertIds = new Set();
+let latestActiveAlertsGlobal = [];
+
+function initAudio() {
+  if (!audioCtx) {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  }
+  if (audioCtx.state === 'suspended') {
+    audioCtx.resume();
+  }
+  isSoundEnabled = true;
+  document.getElementById('enableSoundBtn').style.display = 'none';
+  const muteBtn = document.getElementById('muteBtn');
+  muteBtn.style.display = 'inline-flex';
+  muteBtn.textContent = '🔊 Sound: ON';
+  playSoftBeep(); // Confirmation beep
+}
+
+function toggleMute() {
+  isSoundMuted = !isSoundMuted;
+  const muteBtn = document.getElementById('muteBtn');
+  if (isSoundMuted) {
+    muteBtn.textContent = '🔇 Sound: MUTED';
+    muteBtn.style.background = '#FBE0E0';
+    muteBtn.style.color = '#B05656';
+    stopAlarmSound();
+  } else {
+    muteBtn.textContent = '🔊 Sound: ON';
+    muteBtn.style.background = '#FAF9FC';
+    muteBtn.style.color = '#5B5470';
+    if (lastCriticalAlertsJoined !== "" && !isAcknowledged) {
+      startAlarmSound();
+    }
+  }
+}
+
+function playSoftBeep() {
+  if (!isSoundEnabled || isSoundMuted || !audioCtx) return;
+  try {
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(880, audioCtx.currentTime); // A5 note
+    gain.gain.setValueAtTime(0.08, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.15);
+    osc.start();
+    osc.stop(audioCtx.currentTime + 0.15);
+  } catch(e) { console.error(e); }
+}
+
+function startAlarmSound() {
+  if (alarmInterval || isSoundMuted || !isSoundEnabled) return;
+  alarmInterval = setInterval(() => {
+    if (isSoundMuted || !isSoundEnabled || !audioCtx) return;
+    try {
+      const playBeep = (freq, startTime, duration) => {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(freq, audioCtx.currentTime + startTime);
+        gain.gain.setValueAtTime(0.12, audioCtx.currentTime + startTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + startTime + duration);
+        osc.start(audioCtx.currentTime + startTime);
+        osc.stop(audioCtx.currentTime + startTime + duration);
+      };
+      playBeep(520, 0, 0.22);
+      playBeep(620, 0.28, 0.22);
+    } catch(e) { console.error(e); }
+  }, 2200);
+}
+
+function stopAlarmSound() {
+  if (alarmInterval) {
+    clearInterval(alarmInterval);
+    alarmInterval = null;
+  }
+}
+
+function acknowledgeActiveAlerts() {
+  if (latestActiveAlertsGlobal) {
+    latestActiveAlertsGlobal.forEach(a => {
+      const alertId = `${a.type}_${a.level}_${a.parameter}`;
+      acknowledgedAlertIds.add(alertId);
+    });
+  }
+  stopAlarmSound();
+  document.getElementById('ackAlertBtn').style.display = 'none';
+}
+
+function acknowledgeModalAlert() {
+  acknowledgeActiveAlerts();
+  closeAlertModal();
+}
+
+function closeAlertModal() {
+  document.getElementById('alertModalOverlay').style.display = 'none';
+  isModalOpen = false;
+  if (modalAlertQueue.length > 0) {
+    const nextAlert = modalAlertQueue.shift();
+    showPopupAlert(nextAlert);
+  }
+}
+
+function queuePopupAlert(alert) {
+  const exists = modalAlertQueue.some(a => a.type === alert.type && a.timestamp === alert.timestamp);
+  if (!exists) {
+    modalAlertQueue.push(alert);
+  }
+  
+  if (!isModalOpen) {
+    const nextAlert = modalAlertQueue.shift();
+    if (nextAlert) {
+      showPopupAlert(nextAlert);
+    }
+  }
+}
+
+function showPopupAlert(alert) {
+  return;
+  isModalOpen = true;
+  const overlay = document.getElementById('alertModalOverlay');
+  const header = document.getElementById('alertModalHeader');
+  const title = document.getElementById('alertModalTitle');
+  const body = document.getElementById('alertModalBody');
+  
+  if (alert.level === "CRITICAL") {
+    header.style.color = "#B05656";
+    header.parentElement.style.borderColor = "#E08A8A";
+    title.textContent = "⚠️ CRITICAL ALERT: " + alert.type;
+  } else {
+    header.style.color = "#A8853D";
+    header.parentElement.style.borderColor = "#E8C173";
+    title.textContent = "⚠️ WARNING ALERT: " + alert.type;
+  }
+  
+  body.innerHTML = `
+    <div style="font-size: 14px; margin-bottom: 8px;"><strong>Fault Type:</strong> ${alert.type}</div>
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; background: #FAF9FC; border-radius: 6px; padding: 8px; border: 1px solid #F0EBF8; margin-bottom: 8px;">
+      <div><span style="color:#9B92AE;">Measured Value:</span> <strong style="color:${alert.level === 'CRITICAL' ? '#B05656' : '#A8853D'};">${alert.value}</strong></div>
+      <div><span style="color:#9B92AE;">Safe Limit:</span> <strong>${alert.threshold}</strong></div>
+    </div>
+    <div style="margin-bottom: 6px;"><strong>Reason:</strong> ${alert.reason}</div>
+    <div style="font-size: 11px; color: #9B92AE;"><strong>Time:</strong> ${alert.timestamp}</div>
+  `;
+  
+  overlay.style.display = 'flex';
+}
+
+function updateAlertsUI(activeAlerts, alertHistory) {
+  const mainPanel = document.getElementById('mainAlertPanel');
+  const badge = document.getElementById('alertStatusBadge');
+  const summary = document.getElementById('alertSummaryText');
+  const listContainer = document.getElementById('activeAlertsList');
+  const ackBtn = document.getElementById('ackAlertBtn');
+  
+  const badgeEl = document.getElementById('alertBadge');
+  const dotEl = document.getElementById('alertDot');
+  const textEl = document.getElementById('alertBadgeText');
+  
+  let highestSeverity = "NORMAL";
+  const criticalAlerts = [];
+  const warningAlerts = [];
+  
+  for (const a of activeAlerts) {
+    if (a.level === "CRITICAL") {
+      highestSeverity = "CRITICAL";
+      criticalAlerts.push(a);
+    } else if (a.level === "WARNING") {
+      if (highestSeverity !== "CRITICAL") highestSeverity = "WARNING";
+      warningAlerts.push(a);
+    }
+  }
+  
+  if (highestSeverity === "CRITICAL") {
+    badgeEl.style.background = "#FBE0E0";
+    badgeEl.style.color = "#B05656";
+    dotEl.style.background = "#E08A8A";
+    dotEl.style.animation = "pulse 1.0s infinite";
+    textEl.textContent = "System: CRITICAL";
+  } else if (highestSeverity === "WARNING") {
+    badgeEl.style.background = "#FBF0D6";
+    badgeEl.style.color = "#A8853D";
+    dotEl.style.background = "#E8C173";
+    dotEl.style.animation = "pulse 1.6s infinite";
+    textEl.textContent = "System: WARNING";
+  } else {
+    badgeEl.style.background = "#E0F2E5";
+    badgeEl.style.color = "#5A9670";
+    dotEl.style.background = "#8EC79F";
+    dotEl.style.animation = "none";
+    textEl.textContent = "System: NORMAL";
+  }
+  
+  if (highestSeverity === "CRITICAL") {
+    mainPanel.style.borderColor = "#E08A8A";
+    mainPanel.style.borderWidth = "2px";
+    mainPanel.style.background = "#FFF5F5";
+    badge.textContent = "CRITICAL";
+    badge.style.background = "#E08A8A";
+    badge.style.color = "#FFF";
+    summary.innerHTML = `<span class="pulse-red-dot"></span> ⚠️ CRITICAL ALARM active — urgent technical action required!`;
+    summary.style.color = "#B05656";
+  } else if (highestSeverity === "WARNING") {
+    mainPanel.style.borderColor = "#E8C173";
+    mainPanel.style.borderWidth = "1.5px";
+    mainPanel.style.background = "#FFFDF6";
+    badge.textContent = "WARNING";
+    badge.style.background = "#E8C173";
+    badge.style.color = "#FFF";
+    summary.innerHTML = `⚠️ WARNING: Battery stress conditions detected. Monitor parameters.`;
+    summary.style.color = "#A8853D";
+  } else {
+    mainPanel.style.borderColor = "#B6E3C6";
+    mainPanel.style.borderWidth = "1.5px";
+    mainPanel.style.background = "#F4FBF7";
+    badge.textContent = "NORMAL";
+    badge.style.background = "#8EC79F";
+    badge.style.color = "#FFF";
+    summary.innerHTML = `✓ Battery system operating normally. All parameters are safe.`;
+    summary.style.color = "#3E8C5C";
+  }
+  
+  if (activeAlerts.length === 0) {
+    ackBtn.style.display = 'none';
+    listContainer.innerHTML = `
+      <div style="font-size: 12px; color: #5A9670; padding: 5px 0;">
+         ✓ Battery behavior is safe. No stress predictor, fault predictor, or abnormal battery condition detected.
+      </div>
+    `;
+  } else {
+    if (isSoundEnabled && !isSoundMuted && !isAcknowledged && criticalAlerts.length > 0) {
+      ackBtn.style.display = 'inline-flex';
+    } else {
+      ackBtn.style.display = 'none';
+    }
+    
+    listContainer.innerHTML = activeAlerts.map(a => {
+      const levelColor = a.level === "CRITICAL" ? "#B05656" : "#A8853D";
+      const levelBg = a.level === "CRITICAL" ? "#FBE0E0" : "#FBF0D6";
+      
+      return `
+         <div style="border: 1px solid ${levelColor}; border-radius: 8px; padding: 12px; background: #FFF; display: flex; flex-direction: column; gap: 6px; box-shadow: 0 2px 6px rgba(0,0,0,0.02);">
+            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px dashed #E8E2F0; padding-bottom: 6px;">
+               <div style="display: flex; align-items: center; gap: 8px;">
+                  <span style="font-size: 10px; font-weight: 800; background: ${levelBg}; color: ${levelColor}; padding: 2px 6px; border-radius: 4px; text-transform: uppercase;">${a.level}</span>
+                  <strong style="font-size: 13px; color: #3D3654; display:flex; align-items:center; gap:4px;">⚠️ ${a.type}</strong>
+               </div>
+               <span style="font-size: 11px; color: #9B92AE;">${a.timestamp}</span>
+            </div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; font-size: 11px; background: #FAF9FC; border-radius: 6px; padding: 8px; border: 1px solid #F0EBF8;">
+               <div><span style="color:#9B92AE;">Trigger Parameter:</span> <strong style="color:#3D3654;">${a.parameter}</strong></div>
+               <div><span style="color:#9B92AE;">Current Value:</span> <strong style="color:${levelColor};">${a.value}</strong></div>
+               <div><span style="color:#9B92AE;">Safe Threshold:</span> <strong style="color:#5B5470;">${a.threshold}</strong></div>
+            </div>
+            <div style="font-size: 11.5px; color: #5B5470; line-height: 1.4;">
+               <strong>Technical Reason:</strong> ${a.reason}
+            </div>
+            <div style="font-size: 11.5px; color: ${levelColor}; line-height: 1.4; font-weight: 500; background: ${levelBg}40; border-radius: 4px; padding: 6px 8px; border-left: 3px solid ${levelColor};">
+               <strong>Suggested Action:</strong> ${a.action}
+            </div>
+         </div>
+      `;
+    }).join('');
+  }
+  
+  const histBody = document.getElementById('alertHistoryBody');
+  const combinedHistory = [...activeAlerts, ...alertHistory];
+  
+  if (!combinedHistory || combinedHistory.length === 0) {
+    histBody.innerHTML = `
+      <tr>
+        <td colspan="7" style="text-align:center; color:#9B92AE; padding:15px; font-size:12px;">No historical or active alerts logged in this session.</td>
+      </tr>
+    `;
+  } else {
+    histBody.innerHTML = combinedHistory.map(h => {
+      const levelColor = h.level === "CRITICAL" ? "#B05656" : "#A8853D";
+      const levelBg = h.level === "CRITICAL" ? "#FBE0E0" : "#FBF0D6";
+      
+      const statusStyle = h.status === "RESOLVED"
+        ? "background:#E0F2E5; color:#5A9670; font-weight:600; padding:2px 6px; border-radius:4px;"
+        : `background:${levelBg}; color:${levelColor}; font-weight:600; padding:2px 6px; border-radius:4px;`;
+        
+      const resolvedStr = h.status === "RESOLVED"
+        ? `Resolved at ${h.cleared_timestamp.split(' ')[1]}<br><span style="font-size: 10px; font-weight: normal; color: #5A9670;">${h.resolution_reason || 'Condition returned to normal.'}</span>`
+        : "ACTIVE";
+        
+      return `
+        <tr>
+          <td style="font-variant-numeric: tabular-nums; padding: 6px 8px; border-bottom: 1px solid #F0EBF8;">${h.timestamp}</td>
+          <td style="padding: 6px 8px; border-bottom: 1px solid #F0EBF8;"><strong>${h.type}</strong></td>
+          <td style="padding: 6px 8px; border-bottom: 1px solid #F0EBF8;"><span style="font-size: 9px; font-weight: 800; background: ${levelBg}; color: ${levelColor}; padding: 2px 4px; border-radius: 4px;">${h.level}</span></td>
+          <td style="padding: 6px 8px; border-bottom: 1px solid #F0EBF8;">${h.parameter}</td>
+          <td style="color:${levelColor}; font-weight: 700; padding: 6px 8px; border-bottom: 1px solid #F0EBF8;">${h.value}</td>
+          <td style="padding: 6px 8px; border-bottom: 1px solid #F0EBF8;">${h.threshold}</td>
+          <td style="padding: 6px 8px; border-bottom: 1px solid #F0EBF8;"><span style="${statusStyle}">${resolvedStr}</span></td>
+        </tr>
+      `;
+    }).join('');
+  }
+
+  latestActiveAlertsGlobal = activeAlerts;
+
+  const currentActiveAlertIds = new Set();
+  activeAlerts.forEach(a => {
+    const alertId = `${a.type}_${a.level}_${a.parameter}`;
+    currentActiveAlertIds.add(alertId);
+  });
+
+  // Clean up sets for alerts that are no longer active
+  for (const id of previouslyActiveAlertIds) {
+    if (!currentActiveAlertIds.has(id)) {
+      previouslyActiveAlertIds.delete(id);
+      acknowledgedAlertIds.delete(id);
+    }
+  }
+
+  // Identify new alerts to trigger popup and sounds
+  let hasNewCritical = false;
+  let hasNewWarning = false;
+
+  activeAlerts.forEach(a => {
+    const alertId = `${a.type}_${a.level}_${a.parameter}`;
+    if (!previouslyActiveAlertIds.has(alertId)) {
+      previouslyActiveAlertIds.add(alertId);
+      // queuePopupAlert(a);
+      if (a.level === "CRITICAL") {
+        hasNewCritical = true;
+      } else if (a.level === "WARNING") {
+        hasNewWarning = true;
+      }
+    }
+  });
+
+  // Count unacknowledged active alerts
+  let unackCriticalCount = 0;
+  let unackWarningCount = 0;
+
+  activeAlerts.forEach(a => {
+    const alertId = `${a.type}_${a.level}_${a.parameter}`;
+    if (!acknowledgedAlertIds.has(alertId)) {
+      if (a.level === "CRITICAL") {
+        unackCriticalCount++;
+      } else if (a.level === "WARNING") {
+        unackWarningCount++;
+      }
+    }
+  });
+
+  // Handle Alarm / Sound
+  if (isSoundEnabled && !isSoundMuted) {
+    if (unackCriticalCount > 0) {
+      startAlarmSound();
+    } else {
+      stopAlarmSound();
+    }
+
+    if (unackWarningCount > 0 && hasNewWarning) {
+      playSoftBeep();
+    }
+  } else {
+    stopAlarmSound();
+  }
+
+  // Update acknowledge button visibility
+  if (isSoundEnabled && !isSoundMuted && unackCriticalCount > 0) {
+    ackBtn.style.display = 'inline-flex';
+  } else {
+    ackBtn.style.display = 'none';
+  }
+}
+
+// ─────────────────────────────────────────────
+//  CONSTANTS & THRESHOLDS
+// ─────────────────────────────────────────────
+const OV=4.15, WN=4.05, CELL_MAX=4.2, CELL_MIN=3.0, OC_LIMIT=20, OT_WARN=45, OT_DANGER=60;
+const CELLS=['cell_v1','cell_v2','cell_v3','cell_v4','cell_v5','cell_v6','cell_v7','cell_v8'];
+
+// Fault categories exactly as defined by the Flask backend's history_stats["fault_counts"]
+const FAULT_CATEGORIES = ['Normal','Cell Imbalance','Weak Cell','Overvoltage Risk','Undervoltage Risk','Overtemperature Risk'];
+const FAULT_META = {
+  'Normal':            {n:'Normal',            color:'#5A9670',bg:'#E0F2E5'},
+  'Cell Imbalance':    {n:'Cell Imbalance',    color:'#A8853D',bg:'#FBF0D6'},
+  'Weak Cell':         {n:'Weak Cell',          color:'#C8814D',bg:'#FBE3D2'},
+  'Overvoltage Risk':  {n:'Overvoltage Risk',  color:'#B05656',bg:'#FBE0E0'},
+  'Undervoltage Risk': {n:'Undervoltage Risk', color:'#B05656',bg:'#FBE0E0'},
+  'Overtemperature Risk': {n:'Overtemperature Risk', color:'#E07A5F',bg:'#FDF0ED'}
+};
+
+// The backend only ever hands us ONE row at a time (live_row) plus rolling
+// historical_stats — it does not return a history array. We rebuild a local
+// rolling window here (client-side) purely for the trend chart / ΔV-rate math.
+const CLIENT_HISTORY_MAX = 90;
+let clientHistory = [];
+
+// ─────────────────────────────────────────────
+//  PREDICTION CONFIG
+// ─────────────────────────────────────────────
+// Fallback seed rates (used only until enough live data is gathered)
+const AVG_CHG_RATE = 0.0174; // %/s at ~7.5A
+const AVG_DIS_RATE = 0.0199; // %/s at ~-8A
+const CHG_SOC_TARGET = 96;
+const DIS_SOC_CUTOFF = 39;
+
+// Smoothing config (kills the instant-to-instant flicker)
+const RATE_WINDOW   = 90;    // readings (~90s) used to measure SOC slope
+const RATE_ALPHA    = 0.04;  // EMA weight for the SOC rate (lower = smoother)
+const ETA_ALPHA     = 0.12;  // EMA weight for the displayed ETA (lower = smoother)
+const MIN_SOC_DELTA = 0.5;   // ignore windows where SOC barely moved (noise)
+const ETA_REDRAW_S  = 15;    // only repaint the ETA text if it shifts by >15s
+
+// Smoothing state (persist across ticks)
+let chgRateEMA=null, disRateEMA=null;   // smoothed %/s
+let chgEtaEMA=null,  disEtaEMA=null;    // smoothed seconds-left
+let lastChgShown=null, lastDisShown=null;
+let lastFlow=null;                      // 'CHG' | 'DIS' | 'IDLE' — to reset on transitions
+
+// ─────────────────────────────────────────────
+//  HELPERS
+// ─────────────────────────────────────────────
+function num(v){const x=parseFloat(v);return isNaN(x)?0:x;}
+
+function fmtSec(s){
+  if(s<=0) return '0s';
+  const h=Math.floor(s/3600), m=Math.floor((s%3600)/60), ss=Math.floor(s%60);
+  if(h>0) return `${h}h ${m}m`;
+  if(m>0) return `${m}m ${ss}s`;
+  return `${ss}s`;
+}
+
+function etaTime(secsFromNow){
+  const d = new Date(Date.now() + secsFromNow*1000);
+  return d.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',hour12:true});
+}
+
+// ── TIMESTAMP FIX: parse Pi timestamp robustly ──
+function parsePiTimestamp(ts){
+  if(!ts) return null;
+  // Handle DD-MM-YYYY HH:MM:SS and YYYY-MM-DD HH:MM:SS and DD-MM-YYYY HH:MM
+  const s = String(ts).trim();
+  // Try ISO first
+  let d = new Date(s);
+  if(!isNaN(d)) return d;
+  // Try DD-MM-YYYY HH:MM:SS
+  const m1 = s.match(/^(\d{2})-(\d{2})-(\d{4})\s+(\d{2}):(\d{2})(?::(\d{2}))?/);
+  if(m1){
+    return new Date(+m1[3], +m1[2]-1, +m1[1], +m1[4], +m1[5], +(m1[6]||0));
+  }
+  // Try DD-MM-YYYY HH:MM
+  const m2 = s.match(/^(\d{2})-(\d{2})-(\d{4})\s+(\d{2}):(\d{2})/);
+  if(m2){
+    return new Date(+m2[3], +m2[2]-1, +m2[1], +m2[4], +m2[5], 0);
+  }
+  return null;
+}
+
+// ─────────────────────────────────────────────
+//  CHART
+// ─────────────────────────────────────────────
+let trendChart=null;
+function initTrend(){
+  Chart.defaults.color='#9B92AE';Chart.defaults.borderColor='#E8E2F0';
+  trendChart=new Chart(document.getElementById('trendChart'),{
+    type:'line',
+    data:{labels:[],datasets:[
+      {label:'Max cell V',data:[],borderColor:'#8EC5E8',pointRadius:0,borderWidth:2,yAxisID:'y'},
+      {label:'Min cell V',data:[],borderColor:'#B3C5F2',pointRadius:0,borderWidth:1.5,yAxisID:'y'},
+      {label:'Temp °C',data:[],borderColor:'#F5B584',pointRadius:0,borderWidth:1.5,yAxisID:'y2'},
+      {label:'OV 4.15V',data:[],borderColor:'#F0A8A8',borderDash:[5,5],pointRadius:0,borderWidth:1,yAxisID:'y'},
+    ]},
+    options:{responsive:true,maintainAspectRatio:false,animation:false,
+      plugins:{legend:{labels:{color:'#9B92AE',font:{size:11},boxWidth:10,boxHeight:10}}},
+      scales:{
+        x:{ticks:{color:'#A89FB8',font:{size:9},maxTicksLimit:8},grid:{display:false}},
+        y:{position:'left',title:{display:true,text:'Voltage (V)',color:'#9B92AE',font:{size:10}},ticks:{color:'#9B92AE',font:{size:10}},grid:{color:'rgba(155,146,174,0.15)'}},
+        y2:{position:'right',title:{display:true,text:'Temp (°C)',color:'#F5B584',font:{size:10}},ticks:{color:'#F5B584',font:{size:10}},grid:{display:false}}
+      }
+    }
+  });
+}
+
+// ─────────────────────────────────────────────
+//  MODE / CONF HELPERS
+// ─────────────────────────────────────────────
+function classifyMode(modeName){
+  const m={
+    'CHARGE':{c:'#5589B0',b:'#D6E8F2',i:''},
+    'ACCEL': {c:'#5589B0',b:'#D6E8F2',i:''},
+    'CRUISE':{c:'#A8853D',b:'#FBF0D6',i:''},
+    'DECEL': {c:'#C8814D',b:'#FBE3D2',i:''},
+    'IDLE':  {c:'#5A9670',b:'#E0F2E5',i:''}
+  };
+  return m[modeName]||m['IDLE'];
+}
+// Renders the fault grid from the backend's single categorical "Fault Prediction"
+// label (active state) plus the session-wide fault_counts (how often each
+// category has fired so far). There is no per-fault confidence float from the
+// backend, so each card shows ACTIVE/inactive + a count instead of a 0-1 bar.
+function renderFaultGrid(prediction, stats, livePrediction){
+  let activeFault = null;
+  if (livePrediction && livePrediction.condition) {
+    let cond = livePrediction.condition;
+    if (cond === "Normal Operation") activeFault = "Normal";
+    else if (cond === "Cell Imbalance Risk") activeFault = "Cell Imbalance";
+    else activeFault = cond;
+  } else if (prediction) {
+    activeFault = prediction['Fault Prediction'];
+  }
+  const counts = (stats && stats.fault_counts) || {};
+  const total = Object.values(counts).reduce((a,b)=>a+(b||0),0);
+
+  const faultGridEl = document.getElementById('faultGrid');
+  if (faultGridEl) {
+    faultGridEl.innerHTML = FAULT_CATEGORIES.map(name=>{
+      const meta = FAULT_META[name];
+      const isActive = activeFault === name;
+      const bg = isActive ? meta.bg : '#FAF9FC';
+      const border = isActive ? meta.color : '#E8E2F0';
+      const textColor = isActive ? meta.color : '#9B92AE';
+      const shadow = isActive ? `0 4px 12px ${meta.color}33` : 'none';
+      const scale = isActive ? 'scale(1.02)' : 'scale(1)';
+      
+      let activeText = isActive ? 'ACTIVE NOW' : '—';
+      let activeColor = textColor;
+      
+      if (isActive && livePrediction && livePrediction.confidence) {
+        let scoreObj = livePrediction.confidence;
+        let score = (typeof scoreObj === 'object') ? scoreObj.score : Number(scoreObj);
+        if (typeof score === 'number') {
+           activeText = 'ACTIVE (' + score.toFixed(2) + ')';
+           if (score < 0.35) activeColor = '#B05656'; // Low - Red
+           else if (score < 0.85) activeColor = '#A8853D'; // Moderate - Orange
+           else activeColor = '#5A9670'; // High - Green
+        }
+      }
+
+      return `<div class="fault" style="background:${bg}; border-color:${border}; box-shadow:${shadow}; transform:${scale}; transition: all 0.25s ease;">
+        <div class="fault-name" style="color:${textColor}">${meta.n}</div>
+        <div class="fault-status" style="color:${activeColor}; font-weight:700;">${activeText}</div>
+      </div>`;
+    }).join('');
+  }
+
+  const footer = document.getElementById('faultFooter');
+  if (footer) {
+    const liveCond = livePrediction ? livePrediction.condition : 'Buffering';
+    if(!prediction && !livePrediction){
+      footer.textContent = 'Waiting for a full 60-row window before the model can predict…';
+    } else {
+      let confStr = "";
+      if (livePrediction && livePrediction.confidence && typeof livePrediction.confidence.score === 'number') {
+          confStr = ` (Conf: ${livePrediction.confidence.score.toFixed(2)})`;
+      }
+      const mlFault = prediction ? prediction['Fault Prediction'] : 'Buffering';
+      const opMode = prediction ? prediction['Operating Mode'] : 'Buffering';
+      footer.textContent = `Live Status: ${liveCond}${confStr} (ML: ${mlFault}, Mode: ${opMode}) · ${total} total predictions this session`;
+    }
+  }
+}
+
+// ─────────────────────────────────────────────
+//  FAULT COMPUTE
+// ─────────────────────────────────────────────
+function computeFaults(row,hist){
+  const cells=CELLS.map(c=>num(row[c])).filter(v=>v>0&&v<10);
+  const vmax=cells.length?Math.max(...cells):0, vmin=cells.length?Math.min(...cells):0;
+  const cur=num(row.current),temp=num(row.temperature),dv=num(row.delta_v)||(vmax-vmin);
+  let dvdt=0;
+  if(hist.length>=2){
+    const prev=hist[hist.length-2];
+    const pmax=Math.max(...CELLS.map(c=>num(prev[c])).filter(v=>v>0&&v<10));
+    dvdt=(vmax-pmax)*1000;
+  }
+  let ov=0;
+  if(vmax>=OV)ov=1;
+  else if(vmax>=WN)ov=0.5+0.35*((vmax-WN)/(OV-WN));
+  else if(vmax>=4.0)ov=0.5*((vmax-4.0)/(WN-4.0));
+  if(dvdt>3&&vmax>WN)ov=Math.min(1,ov+0.15);
+  let oc=0;const ai=Math.abs(cur);
+  if(ai>=OC_LIMIT)oc=1;
+  else if(ai>=OC_LIMIT*0.8)oc=0.5+0.35*((ai-OC_LIMIT*0.8)/(OC_LIMIT*0.2));
+  else oc=0.5*(ai/(OC_LIMIT*0.8));
+  let ot=0;
+  if(temp>=OT_DANGER)ot=1;
+  else if(temp>=OT_WARN)ot=0.5+0.35*((temp-OT_WARN)/(OT_DANGER-OT_WARN));
+  else if(temp>=35)ot=0.5*((temp-35)/(OT_WARN-35));
+  let sc=Math.min(1,((vmax<3.5?1:0)+(ai>OC_LIMIT*0.7?1:0)+(temp>OT_WARN?1:0))/3+(dv>0.3?0.2:0));
+  return {ov,oc,ot,sc,vmax,vmin,dv,dvdt,temp,cur};
+}
+
+// ─────────────────────────────────────────────
+//  PREDICTION ENGINE  (EMA-smoothed — stable, no flicker)
+// ─────────────────────────────────────────────
+function ema(prev, val, alpha){ return prev==null ? val : alpha*val + (1-alpha)*prev; }
+
+// Measure SOC slope over a long window using actual elapsed time, not assumed 1 Hz
+function measureSocRate(history){
+  if(history.length < 15) return null;
+  const win = history.slice(-RATE_WINDOW);
+  const first = win[0], last = win[win.length-1];
+  const socFirst = num(first.soc), socLast = num(last.soc);
+  const deltaSoc = Math.abs(socLast - socFirst);
+  if(deltaSoc < MIN_SOC_DELTA) return null;   // SOC barely moved → too noisy to trust
+
+  // Elapsed seconds: prefer real timestamps, fall back to sample count
+  let elapsed = win.length;
+  const tA = parsePiTimestamp(first.timestamp), tB = parsePiTimestamp(last.timestamp);
+  if(tA && tB){ const s = (tB - tA)/1000; if(s > 1) elapsed = s; }
+  return elapsed > 0 ? deltaSoc/elapsed : null;  // %/s
+}
+
+function computePrediction(row, history){
+  const soc = num(row.soc);
+  const cur = num(row.current);
+  const curAbs = Math.abs(cur);
+  const isCharging    = cur > 0.5;
+  const isDischarging = cur < -0.5;
+  const flow = isCharging ? 'CHG' : isDischarging ? 'DIS' : 'IDLE';
+
+  // Reset smoothing whenever the battery switches charge/discharge/idle
+  if(flow !== lastFlow){
+    chgRateEMA=disRateEMA=chgEtaEMA=disEtaEMA=null;
+    lastChgShown=lastDisShown=null;
+    lastFlow = flow;
+  }
+
+  const liveRate = measureSocRate(history);
+  let result = {charging:null, discharging:null};
+
+  if(isCharging){
+    const inst = liveRate || (AVG_CHG_RATE * (curAbs/7.5));   // instantaneous estimate
+    chgRateEMA = ema(chgRateEMA, inst, RATE_ALPHA);           // smoothed rate
+    const socNeeded = Math.max(0, CHG_SOC_TARGET - soc);
+    const rawSec = chgRateEMA>0 ? socNeeded/chgRateEMA : null;
+    chgEtaEMA = (rawSec==null) ? chgEtaEMA : ema(chgEtaEMA, rawSec, ETA_ALPHA);
+    result.charging = {
+      soc, target:CHG_SOC_TARGET, socNeeded,
+      secLeft: chgEtaEMA, rate: chgRateEMA,
+      pct: Math.min(100, (soc / CHG_SOC_TARGET)*100)
+    };
+  } else if(isDischarging){
+    const inst = liveRate || (AVG_DIS_RATE * (curAbs/8.5));
+    disRateEMA = ema(disRateEMA, inst, RATE_ALPHA);
+    const socNeeded = Math.max(0, soc - DIS_SOC_CUTOFF);
+    const rawSec = disRateEMA>0 ? socNeeded/disRateEMA : null;
+    disEtaEMA = (rawSec==null) ? disEtaEMA : ema(disEtaEMA, rawSec, ETA_ALPHA);
+    result.discharging = {
+      soc, cutoff:DIS_SOC_CUTOFF, socNeeded,
+      secLeft: disEtaEMA, rate: disRateEMA,
+      pct: Math.min(100, ((soc - DIS_SOC_CUTOFF) / (100 - DIS_SOC_CUTOFF))*100)
+    };
+  }
+  return result;
+}
+
+// Only repaint the ETA text when it shifts meaningfully (stops 1-second twitching)
+function stableEta(secLeft, last){
+  if(secLeft==null) return {text:'—', val:last};
+  if(last!=null && Math.abs(secLeft-last) < ETA_REDRAW_S) return {text:fmtSec(last), val:last};
+  return {text:fmtSec(secLeft), val:secLeft};
+}
+
+// ─────────────────────────────────────────────
+//  RENDER PREDICTIONS
+// ─────────────────────────────────────────────
+function renderPrediction(pred, row){
+  const soc = num(row.soc);
+  const cur  = num(row.current);
+
+  // Charging box
+  if(pred.charging){
+    const p = pred.charging;
+    const e = stableEta(p.secLeft, lastChgShown); lastChgShown = e.val;
+    document.getElementById('chgPredBox').style.opacity='1';
+    document.getElementById('chgPredTime').textContent = (p.secLeft && p.secLeft>30) ? e.text : '< 1 min';
+    document.getElementById('chgPredSub').textContent  = `To reach ${p.target}% SOC · Rate: ${p.rate.toFixed(4)}%/s`;
+    document.getElementById('chgSocNow').textContent   = `SOC now: ${soc.toFixed(0)}%`;
+    document.getElementById('chgPredBar').style.width  = p.pct+'%';
+    document.getElementById('chgEtaLeft').textContent  = `Remaining: ${e.text}`;
+    document.getElementById('chgEtaAt').textContent    = `ETA: ${e.val ? etaTime(e.val) : '—'}`;
+    document.getElementById('disPredTime').textContent = '—';
+    document.getElementById('disPredSub').textContent  = 'Not discharging';
+    document.getElementById('disPredBar').style.width  = '0%';
+    document.getElementById('disEtaLeft').textContent  = 'Remaining: —';
+    document.getElementById('disEtaAt').textContent    = 'ETA: —';
+    document.getElementById('disSocNow').textContent   = `SOC now: ${soc.toFixed(0)}%`;
+  } else if(pred.discharging){
+    const p = pred.discharging;
+    const e = stableEta(p.secLeft, lastDisShown); lastDisShown = e.val;
+    document.getElementById('disPredBox').style.opacity='1';
+    document.getElementById('disPredTime').textContent = (p.secLeft && p.secLeft>30) ? e.text : '< 1 min';
+    document.getElementById('disPredSub').textContent  = `To reach ${p.cutoff}% SOC · Rate: ${p.rate.toFixed(4)}%/s`;
+    document.getElementById('disSocNow').textContent   = `SOC now: ${soc.toFixed(0)}%`;
+    document.getElementById('disPredBar').style.width  = p.pct+'%';
+    document.getElementById('disEtaLeft').textContent  = `Remaining: ${e.text}`;
+    document.getElementById('disEtaAt').textContent    = `ETA: ${e.val ? etaTime(e.val) : '—'}`;
+    document.getElementById('chgPredTime').textContent = '—';
+    document.getElementById('chgPredSub').textContent  = 'Not charging';
+    document.getElementById('chgPredBar').style.width  = '0%';
+    document.getElementById('chgEtaLeft').textContent  = 'Remaining: —';
+    document.getElementById('chgEtaAt').textContent    = 'ETA: —';
+    document.getElementById('chgSocNow').textContent   = `SOC now: ${soc.toFixed(0)}%`;
+  } else {
+    document.getElementById('chgPredTime').textContent = '—';
+    document.getElementById('chgPredSub').textContent  = 'Idle — no current flow';
+    document.getElementById('disPredTime').textContent = '—';
+    document.getElementById('disPredSub').textContent  = 'Idle — no current flow';
+    document.getElementById('chgSocNow').textContent   = `SOC now: ${soc.toFixed(0)}%`;
+    document.getElementById('disSocNow').textContent   = `SOC now: ${soc.toFixed(0)}%`;
+  }
+}
+
+// ─────────────────────────────────────────────
+//  UPDATE PREDICTION DETAILS PANEL
+// ─────────────────────────────────────────────
+function updatePredictionDetailsPanel(livePrediction) {
+  const condEl = document.getElementById('predCond');
+  const severityEl = document.getElementById('predSeverity');
+  const confEl = document.getElementById('predConf');
+  const paramEl = document.getElementById('predParam');
+  const valEl = document.getElementById('predVal');
+  const limitEl = document.getElementById('predLimit');
+  const chemEl = document.getElementById('predChem');
+  const reasonEl = document.getElementById('predReason');
+
+  if (!livePrediction) {
+    if (condEl) condEl.textContent = "—";
+    if (severityEl) {
+      severityEl.innerHTML = "—";
+      severityEl.style.color = "#3D3654";
+    }
+    if (confEl) confEl.textContent = "—";
+    if (paramEl) paramEl.innerHTML = "—"; // Reusing for Final Risk
+    if (valEl) {
+      valEl.innerHTML = "—";
+      valEl.style.color = "#3D3654";
+    }
+    if (limitEl) limitEl.innerHTML = "—";
+    if (chemEl) chemEl.textContent = "—";
+    if (reasonEl) reasonEl.textContent = "Waiting for live prediction data...";
+    return;
+  }
+
+  // Determine Severity Color
+  let sevLvl = livePrediction.severity_level || "Normal";
+  let sevColor = "#5A9670";
+  if (sevLvl === "Critical") sevColor = "#B05656";
+  else if (sevLvl === "High") sevColor = "#C8814D";
+  else if (sevLvl === "Moderate") sevColor = "#A8853D";
+  
+  // Determine Risk Color
+  let riskLvl = livePrediction.risk_level || "Normal";
+  let riskColor = "#5A9670";
+  if (riskLvl.includes("Critical")) riskColor = "#B05656";
+  else if (riskLvl.includes("High")) riskColor = "#C8814D";
+  else if (riskLvl.includes("Moderate")) riskColor = "#A8853D";
+
+  // Determine Confidence Color
+  let confLvl = livePrediction.confidence_level || "High Confidence";
+  let confColor = "#5A9670";
+  if (confLvl.includes("Low")) confColor = "#B05656";
+  else if (confLvl.includes("Moderate")) confColor = "#A8853D";
+
+  if (condEl) {
+    condEl.textContent = livePrediction.predicted_fault || "—";
+    condEl.style.color = riskColor;
+  }
+  
+  // 1. Prediction Confidence
+  if (confEl) {
+    let confScore = livePrediction.prediction_confidence || 0;
+    confEl.innerHTML = `${confScore.toFixed(2)} &ndash; ${confLvl}`;
+    confEl.style.color = confColor;
+    confEl.style.fontWeight = "600";
+  }
+  
+  // 2. Fault Severity
+  if (severityEl) {
+    let sevScore = livePrediction.fault_severity_score || 0;
+    severityEl.innerHTML = `${sevScore.toFixed(2)} &ndash; ${sevLvl}`;
+    severityEl.style.color = sevColor;
+  }
+  
+  // 3. Final Risk (Reusing old param element slot for layout)
+  if (paramEl) {
+    let riskScore = livePrediction.final_risk_score || 0;
+    let overrideBadge = livePrediction.safety_override ? ' <span style="background:#B05656;color:white;padding:2px 4px;border-radius:4px;font-size:9px;">OVERRIDE</span>' : '';
+    paramEl.innerHTML = `<strong>${riskScore.toFixed(2)} &ndash; ${riskLvl}</strong>${overrideBadge}`;
+    paramEl.style.color = riskColor;
+  }
+  
+  // Reusing valEl for Measurements
+  if (valEl) {
+    let val = livePrediction.measured_value || 0;
+    let warn = livePrediction.warning_threshold || 0;
+    let crit = livePrediction.critical_threshold || 0;
+    valEl.innerHTML = `Val: ${val.toFixed(2)} | Warn: ${warn.toFixed(2)} | Crit: ${crit.toFixed(2)}`;
+    valEl.style.color = "#3D3654";
+    valEl.style.fontSize = "11px";
+  }
+  
+  // Persistence 
+  if (limitEl) {
+    limitEl.innerHTML = `Persistence: <strong>${livePrediction.persistence_count || 0} samples</strong>`;
+  }
+  
+  if (chemEl) {
+    chemEl.textContent = `Mode: ${livePrediction.operating_mode || "—"}`;
+  }
+  
+  if (reasonEl) {
+    reasonEl.textContent = livePrediction.reason || "—";
+    if (livePrediction.supporting_indicators && livePrediction.supporting_indicators.length > 0) {
+       reasonEl.innerHTML += `<br><span style="color:#8E7FB0;font-size:10px;">Indicators: ${livePrediction.supporting_indicators.join(', ')}</span>`;
+    }
+  }
+}
+
+// ─────────────────────────────────────────────
+//  MAIN RENDER
+// ─────────────────────────────────────────────
+let latestPrediction = null;
+let latestStats = null;
+
+function render(latest, history, prediction, stats, livePrediction){
+  if(!latest) return;
+  latestPrediction = prediction || null;
+  latestStats = stats || null;
+  const f=computeFaults(latest,history);
+  let modeName = prediction ? prediction['Operating Mode'] : ({0:'IDLE',1:'ACCEL',2:'CRUISE',3:'DECEL'}[latest.driving_mode]||'IDLE');
+  const curVal = parseFloat(latest.current);
+  if (Math.abs(curVal) <= 0.5) { modeName = 'IDLE'; } 
+  else if (modeName === 'IDLE') { modeName = curVal > 0.5 ? 'CHARGE' : 'CRUISE'; }
+  const mode=classifyMode(modeName);
+  latest._overriddenMode = modeName;
+
+  // ── Timestamp fix: show Pi time vs local time ──
+  const piDate = latest.timestamp ? parsePiTimestamp(latest.timestamp) : null;
+  const localNow = new Date();
+  document.getElementById('piTime').textContent   = piDate ? piDate.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false}) : (latest.timestamp || '—');
+  document.getElementById('localTime').textContent= localNow.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false});
+  document.getElementById('tsLabel').textContent  = piDate ? `Pi: ${piDate.toLocaleTimeString()}` : (latest.timestamp || '');
+
+  // ── Charge/Discharge badge ──
+  const cur=num(latest.current);
+  let chgState;
+  if(cur<-0.5)      chgState={label:'DISCHARGING',icon:'',color:'#C8814D',bg:'#FBE3D2',desc:'Current flowing OUT ('+cur.toFixed(2)+'A)'};
+  else if(cur>0.5)  chgState={label:'CHARGING',   icon:'',color:'#5589B0',bg:'#D6E8F2',desc:'Current flowing IN (+'+cur.toFixed(2)+'A)'};
+  else              chgState={label:'IDLE / REST', icon:'',color:'#5A9670',bg:'#E0F2E5',desc:'No significant current ('+cur.toFixed(2)+'A)'};
+  document.getElementById('chgBadgeWrap').innerHTML=
+    `<span class="mode-badge" style="background:${chgState.bg};color:${chgState.color};font-size:16px">${chgState.icon} ${chgState.label}</span>`
+    +`<div style="font-size:10.5px;color:#9B92AE;margin-top:6px">${chgState.desc}</div>`;
+
+  // ── Status banner (driven by backend's categorical fault prediction) ──
+  const banner=document.getElementById('statusBanner');
+  const st=document.getElementById('statusText');
+  let activeFault = null;
+  if (livePrediction && livePrediction.condition) {
+    let cond = livePrediction.condition;
+    if (cond === "Normal Operation") activeFault = "Normal";
+    else if (cond === "Cell Imbalance Risk") activeFault = "Cell Imbalance";
+    else activeFault = cond;
+  } else if (latestPrediction) {
+    activeFault = latestPrediction['Fault Prediction'];
+  }
+
+  if (latestPrediction && latestPrediction['is_ood']) {
+    banner.style.background='#FFD9D9';
+    document.getElementById('statusDot').style.background='#FF0000';
+    st.innerHTML=`<span style="font-weight: 700; text-transform: uppercase;">⚠️ Critical: Unknown Fault Detected (OOD Anomaly)</span>`;
+    st.style.color='#CC0000';
+    
+    // Add flashing effect
+    if (!document.getElementById('ood-style')) {
+        const style = document.createElement('style');
+        style.id = 'ood-style';
+        style.innerHTML = `@keyframes flashBanner { 0% { background: #FFD9D9; } 50% { background: #FFB3B3; } 100% { background: #FFD9D9; } }`;
+        document.head.appendChild(style);
+    }
+    banner.style.animation = 'flashBanner 1.5s infinite';
+    
+    if (!window.hasShownOodPopup) {
+       alert("CRITICAL WARNING:\n\nUnknown behaviour detected.\nThe current signal pattern is outside the ML model’s learned distribution and cannot be safely classified as one of the known battery faults.\n\nPriority: HIGHEST\nAction: Immediate inspection required.");
+       window.hasShownOodPopup = true;
+    }
+  } else {
+    banner.style.animation = 'none';
+    if (latestPrediction && !latestPrediction['is_ood']) {
+        window.hasShownOodPopup = false; // Reset hysteresis lock when condition clears
+    }
+    
+    if (activeFault === 'Overvoltage Risk' || activeFault === 'Undervoltage Risk' || activeFault === 'Overtemperature Risk' || activeFault === 'Overcurrent Risk') {
+      banner.style.background='#FBE0E0';document.getElementById('statusDot').style.background='#E08A8A';
+      st.textContent=`${activeFault.toUpperCase()} — Act Immediately`;st.style.color='#B05656';
+    } else if (activeFault === 'Cell Imbalance' || activeFault === 'Weak Cell') {
+      banner.style.background='#FBF0D6';document.getElementById('statusDot').style.background='#E8C173';
+      st.textContent=`${activeFault} Detected — Review Condition`;st.style.color='#A8853D';
+    } else if (activeFault === 'Normal') {
+      banner.style.background='#E0F2E5';document.getElementById('statusDot').style.background='#8EC79F';
+      st.textContent='System Normal';st.style.color='#5A9670';
+    } else {
+      banner.style.background='#EAF1FB';document.getElementById('statusDot').style.background='#8EC5E8';
+      st.textContent='Buffering — accumulating 60-row window…';st.style.color='#4A7BB0';
+    }
+  }
+
+  // ── Parameters ──
+  const socAvail = latest.soc !== undefined && latest.soc !== null;
+  const hasCellData = CELLS.some(c => latest[c] !== undefined && latest[c] !== null);
+  const params=[
+    {l:'Pack Voltage',v:num(latest.voltage).toFixed(2),u:'V',pct:num(latest.voltage)/33.6*100,col:'#5589B0'},
+    {l:'Current',v:num(latest.current).toFixed(2),u:'A',pct:Math.min(100,Math.abs(cur)/OC_LIMIT*100),col:cur > 0.05 ? '#5589B0' : (cur < -0.05 ? '#C8814D' : '#5A9670')},
+    latest.temperature !== undefined && latest.temperature !== null
+      ? {l:'Temperature',v:num(latest.temperature).toFixed(1),u:'°C',pct:Math.min(100,num(latest.temperature)/OT_DANGER*100),col:num(latest.temperature)>=OT_DANGER?'#B05656':num(latest.temperature)>=OT_WARN?'#A8853D':'#5A9670'}
+      : {l:'Temperature',v:'Temperature unavailable',u:'',pct:0,col:'#9B92AE'},
+    socAvail
+      ? {l:'SOC',v:num(latest.soc).toFixed(0),u:'%',pct:num(latest.soc),col:'#8D82A9'}
+      : {l:'SOC',v:'n/a',u:'',pct:0,col:'#C9C2D8'},
+    hasCellData
+      ? {l:'Max Cell V',v:f.vmax.toFixed(3),u:'V',pct:f.vmax/CELL_MAX*100,col:f.vmax>OV?'#B05656':f.vmax>WN?'#A8853D':'#5A9670'}
+      : {l:'Max Cell V',v:'n/a',u:'',pct:0,col:'#C9C2D8'},
+    hasCellData
+      ? {l:'Min Cell V',v:f.vmin.toFixed(3),u:'V',pct:f.vmin/CELL_MAX*100,col:f.vmin<CELL_MIN?'#B05656':'#5589B0'}
+      : {l:'Min Cell V',v:'n/a',u:'',pct:0,col:'#C9C2D8'},
+    latestPrediction && latestPrediction['ood_score'] !== undefined
+      ? {l:'OOD Anomaly Score',v:Number(latestPrediction['ood_score']).toFixed(3),u:'',pct:Math.min(100, Number(latestPrediction['ood_score'])*100),col:Number(latestPrediction['ood_score'])>0.5?'#B05656':Number(latestPrediction['ood_score'])>0.2?'#A8853D':'#5A9670'}
+      : {l:'OOD Anomaly Score',v:'Calibrating',u:'',pct:0,col:'#C9C2D8'},
+  ];
+  document.getElementById('paramGrid').innerHTML=params.map(p=>`
+    <div class="param"><div class="param-lbl">${p.l}</div>
+    <div class="param-val" style="color:${p.col}">${p.v}<span class="param-unit"> ${p.u}</span></div>
+    <div class="param-bar"><div class="param-fill" style="width:${Math.max(0,Math.min(100,p.pct))}%;background:${p.col}"></div></div></div>`).join('');
+
+  // ── Mode badge ──
+  document.getElementById('modeBadgeWrap').innerHTML=`<span class="mode-badge" style="background:${mode.b};color:${mode.c}">${mode.i} ${latest._overriddenMode}</span>`;
+
+  // ── ΔV & dV/dt ──
+  document.getElementById('dvVal').innerHTML=`${f.dv.toFixed(3)}<span class="param-unit"> V</span>`;
+  const dvc=f.dv>0.30?'#B05656':f.dv>0.15?'#A8853D':'#5A9670';
+  document.getElementById('dvBar').style.width=Math.min(100,f.dv/0.4*100)+'%';
+  document.getElementById('dvBar').style.background=dvc;
+  const dvs=document.getElementById('dvStatus');
+  dvs.textContent=f.dv>0.30?'Severe imbalance':f.dv>0.15?'Moderate imbalance':'Healthy';dvs.style.color=dvc;
+  document.getElementById('dvdtVal').innerHTML=`${f.dvdt.toFixed(1)}<span class="param-unit"> mV/s</span>`;
+  document.getElementById('dvdtBar').style.width=Math.min(100,Math.abs(f.dvdt)/10*100)+'%';
+  document.getElementById('dvdtBar').style.background=f.dvdt>3?'#A8853D':'#8EC5E8';
+
+  // ── Cell Voltages (only if live_row actually contains cell_v1..8) ──
+  if(hasCellData){
+    document.getElementById('cellGrid').innerHTML=CELLS.map(c=>{
+      const v=num(latest[c]);let bg,bd,tx;
+      if(v>OV){bg='#FBE0E0';bd='#E89595';tx='#B05656';}
+      else if(v>WN){bg='#FBF0D6';bd='#E8C173';tx='#A8853D';}
+      else if(v>4.0){bg='#E0F2E5';bd='#8EC79F';tx='#5A9670';}
+      else{bg='#D6E8F2';bd='#8EC5E8';tx='#5589B0';}
+      return `<div class="cell" style="background:${bg};border-color:${bd}"><div class="cell-id" style="color:${tx}">${c}</div><div class="cell-v" style="color:${tx}">${v.toFixed(3)} V</div></div>`;
+    }).join('');
+  } else {
+    document.getElementById('cellGrid').innerHTML =
+      `<div style="grid-column:1/-1;font-size:12px;color:#9B92AE;text-align:center;padding:1rem 0">
+        Per-cell voltages not included in this telemetry payload — pack voltage shown above in Parameters.
+      </div>`;
+  }
+
+  // ── Faults (categorical — driven by backend prediction, not local heuristics) ──
+  renderFaultGrid(latestPrediction, latestStats, livePrediction);
+
+  // ── Verification panel removed as requested ──
+  // ── Trend chart ──
+  const win=history.slice(-60);
+  trendChart.data.labels=win.map((r,i)=>i);
+  trendChart.data.datasets[0].data=win.map(r=>{const c=CELLS.map(cc=>num(r[cc])).filter(v=>v>0&&v<10);return c.length?Math.max(...c):null;});
+  trendChart.data.datasets[1].data=win.map(r=>{const c=CELLS.map(cc=>num(r[cc])).filter(v=>v>0&&v<10);return c.length?Math.min(...c):null;});
+  trendChart.data.datasets[2].data=win.map(r=>num(r.temperature));
+  trendChart.data.datasets[3].data=win.map(()=>OV);
+  trendChart.update('none');
+
+  // ── Predictions (only meaningful if live_row actually includes SOC) ──
+  if(latest.soc === undefined || latest.soc === null){
+    ['chgPredTime','disPredTime'].forEach(id=>document.getElementById(id).textContent='—');
+    document.getElementById('chgPredSub').textContent = 'SOC not provided by backend';
+    document.getElementById('disPredSub').textContent = 'SOC not provided by backend';
+    document.getElementById('chgSocNow').textContent  = 'SOC now: n/a';
+    document.getElementById('disSocNow').textContent  = 'SOC now: n/a';
+    document.getElementById('chgPredBar').style.width = '0%';
+    document.getElementById('disPredBar').style.width = '0%';
+  } else {
+    const pred = computePrediction(latest, history);
+    renderPrediction(pred, latest);
+  }
+  updatePredictionDetailsPanel(livePrediction);
+}
+
+// ─────────────────────────────────────────────
+//  POLL — wired to Flask backend's /api/telemetry GET endpoint
+// ─────────────────────────────────────────────
+// Backend response shape (see predict_fault Flask app):
+// {
+//   buffer_length, status: "success"|"accumulating",
+//   prediction: { "Operating Mode": "...", "Fault Prediction": "..." } | null,
+//   live_row: { ...last posted telemetry row... },
+//   historical_stats: {
+//     total_rows_processed, max_temp, min_temp, max_voltage, min_voltage,
+//     avg_delta_v, mode_counts:{ACCEL,CRUISE,DECEL,IDLE},
+//     fault_counts:{Normal,'Cell Imbalance','Weak Cell','Overvoltage Risk','Undervoltage Risk'}
+//   }
+// }
+const API_BASE = window.location.protocol === 'file:' ? 'http://127.0.0.1:5000' : ''; // auto-fallback for local file protocol
+let consecutiveErrors = 0;
+let lastSeenRowMarker = null; // used to avoid pushing duplicate rows into clientHistory
+
+function applyStaleUI(age) {
+  const banner = document.getElementById('statusBanner');
+  if (banner) {
+    banner.style.background = '#FBE0E0';
+    document.getElementById('statusDot').style.background = '#E58E8E';
+    const textEl = document.getElementById('statusText');
+    textEl.textContent = 'Data stale / Bluetooth reconnecting (Age: ' + age.toFixed(1) + 's)';
+    textEl.style.color = '#B05656';
+  }
+  
+  const idsToGray = ['paramGrid', 'cellGrid', 'chgPredBox', 'disPredBox', 'cycleAnalyticsCard'];
+  idsToGray.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.opacity = '0.45';
+  });
+  
+  // Set prediction text to waiting
+  ['chgPredTime', 'disPredTime'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = '—';
+  });
+  const chgSub = document.getElementById('chgPredSub');
+  if (chgSub) chgSub.textContent = 'Waiting for valid live data...';
+  const disSub = document.getElementById('disPredSub');
+  if (disSub) disSub.textContent = 'Waiting for valid live data...';
+  
+  ['chgEtaLeft', 'chgEtaAt', 'disEtaLeft', 'disEtaAt'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = id.includes('Left') ? 'Remaining: —' : 'ETA: —';
+  });
+  
+  ['cycleChargingInsight', 'cycleDischargingInsight', 'cycleIdleInsight', 'cycleChargingMetrics', 'cycleDischargingMetrics', 'cycleIdleMetrics'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = 'Waiting for valid live data...';
+  });
+}
+
+function restoreStaleUI() {
+  const idsToRestore = ['paramGrid', 'cellGrid', 'chgPredBox', 'disPredBox', 'cycleAnalyticsCard'];
+  idsToRestore.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.opacity = '1.0';
+  });
+}
+
+function updateBluetoothStatus(d) {
+  const btBadge = document.getElementById('btBadge');
+  const btDot = document.getElementById('btDot');
+  const btText = document.getElementById('btText');
+  const lastBmsEl = document.getElementById('lastBmsUpdate');
+
+  if (!btBadge || !btDot || !btText) return;
+
+  const connected = d.bluetooth_connected;
+  const stale = d.is_stale;
+  const age = d.data_age_seconds || 0.0;
+  
+  const rawRow = d.raw_row || d.live_row || {};
+  const isSim = rawRow.raw_packet_hex === "SIMULATION_DATA";
+
+  let state = "Disconnected";
+  if (connected && !stale && !isSim) {
+    state = "Connected";
+  } else if (isSim) {
+    state = "Demo";
+  } else if (connected && stale) {
+    state = "PairedNoData";
+  } else {
+    state = "Disconnected";
+  }
+
+  if (state === "Connected") {
+    btBadge.className = "live-badge";
+    btBadge.style.background = "#E0F2E5";
+    btBadge.style.color = "#5A9670";
+    btBadge.style.borderColor = "";
+    btDot.style.background = "#8EC79F";
+    btDot.style.animation = "pulse 1.4s infinite";
+    btText.textContent = "Bluetooth Connected";
+    
+    const now = new Date();
+    lastBmsEl.textContent = now.toLocaleTimeString('en-IN', {hour12: false});
+    lastBmsEl.style.color = "#5B5470";
+  } else if (state === "PairedNoData") {
+    btBadge.className = "live-badge";
+    btBadge.style.background = "#FBF0D6";
+    btBadge.style.color = "#A8853D";
+    btBadge.style.borderColor = "#E8C173";
+    btDot.style.background = "#E8C173";
+    btDot.style.animation = "none";
+    btText.textContent = "Bluetooth Paired but No Data";
+    
+    lastBmsEl.textContent = `${age.toFixed(0)}s ago (Stale)`;
+    lastBmsEl.style.color = "#B05656";
+  } else if (state === "Demo") {
+    btBadge.className = "live-badge";
+    btBadge.style.background = "#EAF1FB";
+    btBadge.style.color = "#4A7BB0";
+    btBadge.style.borderColor = "#8EC5E8";
+    btDot.style.background = "#8EC5E8";
+    btDot.style.animation = "none";
+    btText.textContent = "Using Session/Demo Data";
+    
+    lastBmsEl.textContent = "Demo Mode";
+    lastBmsEl.style.color = "#4A7BB0";
+  } else {
+    btBadge.className = "live-badge offline";
+    btBadge.style.background = "#FBE0E0";
+    btBadge.style.color = "#B05656";
+    btBadge.style.borderColor = "";
+    btDot.style.background = "#E08A8A";
+    btDot.style.animation = "none";
+    btText.textContent = "Bluetooth Disconnected";
+    
+    lastBmsEl.textContent = "Disconnected";
+    lastBmsEl.style.color = "#B05656";
+  }
+}
+
+async function poll(){
+  // Update local clock every tick regardless
+  document.getElementById('localTime').textContent = new Date().toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false});
+
+  try{
+    const controller = new AbortController();
+    const timeout = setTimeout(()=>controller.abort(), 3000); // 3s timeout
+    const res = await fetch(API_BASE + '/api/live-data', {signal: controller.signal});
+    clearTimeout(timeout);
+
+    if(!res.ok) throw new Error(`HTTP ${res.status}`);
+    const d = await res.json();
+    if(d.error) throw new Error(d.error);
+    if(d.active_profile_name) document.getElementById('profileText').textContent = 'Profile: ' + d.active_profile_name;
+
+    consecutiveErrors = 0;
+    document.getElementById('liveBadge').className='live-badge';
+    document.getElementById('liveText').textContent='LIVE';
+    
+    updateBluetoothStatus(d);
+    updateAlertsUI(d.active_alerts || [], d.alert_history || []);
+
+    const fmtN = n => (n == null ? '—' : Number(n).toLocaleString('en-IN'));
+
+    // ── Inference window (sliding 60-row buffer) ──
+    document.getElementById('liveRows').textContent = fmtN(d.buffer_length);
+    document.getElementById('liveRowsCap').textContent =
+      d.status === 'success'
+        ? 'rows buffered · model is live'
+        : `rows buffered · accumulating to 60`;
+
+    // ── Session totals (from historical_stats) ──
+    const stats = d.historical_stats || {};
+    document.getElementById('histUnfilteredRows').textContent = fmtN(stats.total_rows_processed);
+    document.getElementById('histFilteredRows').textContent =
+      (stats.avg_delta_v != null) ? stats.avg_delta_v.toFixed(4)+' V' : '—';
+
+    // ── Update Cycle Health Analytics ──
+    const cycle = d.cycle_analytics || {};
+    const actType = cycle.active_cycle_type || "Idle";
+    
+    // Overview elements
+    document.getElementById("cycleOverviewId").textContent = `#${cycle.active_cycle_id || 0}`;
+    document.getElementById("cycleOverviewTime").textContent = `Elapsed: ${cycle.elapsed_time_str || "0m"}` + (actType !== "Idle" ? ` · Remaining: ${cycle.time_remaining_str || "N/A"}` : "");
+    
+    const likelyFault = cycle.likely_fault_to_occur || "None";
+    const faultEl = document.getElementById("cycleOverviewLikelyFault");
+    faultEl.textContent = likelyFault;
+    faultEl.style.color = (likelyFault === "None" || likelyFault === "Normal") ? "#5A9670" : "#B05656";
+    
+    const deviation = cycle.deviation_level || "Normal deviation";
+    const devEl = document.getElementById("cycleOverviewDeviation");
+    devEl.textContent = deviation;
+    if (deviation.includes("Normal")) {
+      devEl.style.color = "#5A9670";
+    } else if (deviation.includes("Moderate")) {
+      devEl.style.color = "#A8853D";
+    } else {
+      devEl.style.color = "#B05656";
+    }
+    
+    const behaviorTrend = cycle.behavior_trend || "Stable";
+    const trendEl = document.getElementById("cycleOverviewTrend");
+    trendEl.textContent = behaviorTrend;
+    trendEl.style.color = behaviorTrend === "Improving" ? "#5A9670" : (behaviorTrend === "Degradating" ? "#B05656" : "#9B92AE");
+    
+    // Confidence Score Display
+    const confEl = document.getElementById("cycleOverviewConfidence");
+    const confLabelEl = document.getElementById("cycleOverviewConfidenceLabel");
+    let confObj = cycle.confidence_score;
+    
+    if (typeof confObj === "object" && confObj !== null) {
+      const score = confObj.score;
+      const label = confObj.label || "";
+      
+      if (typeof score === "number") {
+        confEl.textContent = score.toFixed(2);
+        confLabelEl.textContent = label;
+        
+        // Exact user rules
+        if (score < 0.35) {
+          confEl.style.color = "#B05656"; // Red (Low)
+        } else if (score < 0.85) {
+          confEl.style.color = "#A8853D"; // Orange/Yellow (Moderate)
+        } else {
+          confEl.style.color = "#5A9670"; // Green (High)
+        }
+      } else {
+        confEl.textContent = String(score);
+        confLabelEl.textContent = label;
+      }
+    } else {
+       confEl.textContent = "—";
+       confLabelEl.textContent = "Awaiting data";
+    }
+
+    // Highlight columns based on Active State
+    const colCharging = document.getElementById("cycleColCharging");
+    const colDischarging = document.getElementById("cycleColDischarging");
+    const colIdle = document.getElementById("cycleColIdle");
+    const badgeCharging = document.getElementById("cycleStatusBadgeCharging");
+    const badgeDischarging = document.getElementById("cycleStatusBadgeDischarging");
+    const badgeIdle = document.getElementById("cycleStatusBadgeIdle");
+    
+    if (actType === "Charge") {
+      colCharging.style.borderColor = "#5589B0";
+      colCharging.style.borderWidth = "2px";
+      colCharging.style.boxShadow = "0 4px 12px rgba(85,137,176,0.15)";
+      colCharging.style.opacity = "1.0";
+      badgeCharging.textContent = "ACTIVE";
+      badgeCharging.style.background = "#5589B0";
+      badgeCharging.style.color = "#FFF";
+      
+      colDischarging.style.borderColor = "#E8E2F0";
+      colDischarging.style.borderWidth = "1px";
+      colDischarging.style.boxShadow = "none";
+      colDischarging.style.opacity = "0.55";
+      badgeDischarging.textContent = "INACTIVE";
+      badgeDischarging.style.background = "#E8E2F0";
+      badgeDischarging.style.color = "#9B92AE";
+      
+      colIdle.style.borderColor = "#E8E2F0";
+      colIdle.style.borderWidth = "1px";
+      colIdle.style.boxShadow = "none";
+      colIdle.style.opacity = "0.55";
+      badgeIdle.textContent = "INACTIVE";
+      badgeIdle.style.background = "#E8E2F0";
+      badgeIdle.style.color = "#9B92AE";
+    } else if (actType === "Discharge") {
+      colCharging.style.borderColor = "#E8E2F0";
+      colCharging.style.borderWidth = "1px";
+      colCharging.style.boxShadow = "none";
+      colCharging.style.opacity = "0.55";
+      badgeCharging.textContent = "INACTIVE";
+      badgeCharging.style.background = "#E8E2F0";
+      badgeCharging.style.color = "#9B92AE";
+      
+      colDischarging.style.borderColor = "#C8814D";
+      colDischarging.style.borderWidth = "2px";
+      colDischarging.style.boxShadow = "0 4px 12px rgba(200,129,77,0.15)";
+      colDischarging.style.opacity = "1.0";
+      badgeDischarging.textContent = "ACTIVE";
+      badgeDischarging.style.background = "#C8814D";
+      badgeDischarging.style.color = "#FFF";
+      
+      colIdle.style.borderColor = "#E8E2F0";
+      colIdle.style.borderWidth = "1px";
+      colIdle.style.boxShadow = "none";
+      colIdle.style.opacity = "0.55";
+      badgeIdle.textContent = "INACTIVE";
+      badgeIdle.style.background = "#E8E2F0";
+      badgeIdle.style.color = "#9B92AE";
+    } else {
+      colCharging.style.borderColor = "#E8E2F0";
+      colCharging.style.borderWidth = "1px";
+      colCharging.style.boxShadow = "none";
+      colCharging.style.opacity = "0.55";
+      badgeCharging.textContent = "INACTIVE";
+      badgeCharging.style.background = "#E8E2F0";
+      badgeCharging.style.color = "#9B92AE";
+      
+      colDischarging.style.borderColor = "#E8E2F0";
+      colDischarging.style.borderWidth = "1px";
+      colDischarging.style.boxShadow = "none";
+      colDischarging.style.opacity = "0.55";
+      badgeDischarging.textContent = "INACTIVE";
+      badgeDischarging.style.background = "#E8E2F0";
+      badgeDischarging.style.color = "#9B92AE";
+      
+      colIdle.style.borderColor = "#5A9670";
+      colIdle.style.borderWidth = "2px";
+      colIdle.style.boxShadow = "0 4px 12px rgba(90,150,112,0.15)";
+      colIdle.style.opacity = "1.0";
+      badgeIdle.textContent = "ACTIVE";
+      badgeIdle.style.background = "#5A9670";
+      badgeIdle.style.color = "#FFF";
+    }
+
+    // Column 1: Charging Condition
+    if (actType === "Charge") {
+      const actSoc = cycle.current_soc || 0;
+      const expSoc = cycle.expected_soc || 0;
+      document.getElementById("cycleChargingSocText").textContent = `Expected SOC: ${expSoc.toFixed(1)}% | Actual: ${actSoc.toFixed(1)}% (Diff: ${num(actSoc - expSoc).toFixed(1)}%)`;
+      document.getElementById("cycleChargingActualSocBar").style.width = actSoc + "%";
+      const marker = document.getElementById("cycleChargingExpectedSocMarker");
+      marker.style.left = expSoc + "%";
+      marker.style.display = "block";
+      
+      const risks = cycle.charging_risks_active || [];
+      const risksEl = document.getElementById("cycleChargingRisks");
+      if (risks.length > 0) {
+        risksEl.innerHTML = risks.map(r => `<span style="font-size:11px; background:#FBE0E0; color:#B05656; padding:3px 8px; border-radius:6px; font-weight:600;">⚠️ ${r}</span>`).join("");
+      } else {
+        risksEl.innerHTML = `<span style="font-size:11px; background:#E0F2E5; color:#5A9670; padding:3px 8px; border-radius:6px; font-weight:600;">No active risks</span>`;
+      }
+      
+      if (cycle.charging_analysis) {
+        const ca = cycle.charging_analysis;
+        document.getElementById("cycleChargingMetrics").innerHTML = `
+          <div style="display:flex; justify-content:space-between; border-bottom:1px solid #E8E2F0; padding-bottom:3px;">
+            <span style="color:#9B92AE;">Duration (Est/Act):</span>
+            <span style="font-weight:600; color:#3D3654;">${ca.expected_duration_str} / ${ca.actual_duration_str} (${ca.duration_deviation_pct > 0 ? '+' : ''}${ca.duration_deviation_pct}%)</span>
+          </div>
+          <div style="display:flex; justify-content:space-between; border-bottom:1px solid #E8E2F0; padding-bottom:3px;">
+            <span style="color:#9B92AE;">Voltage Rise (Est/Act):</span>
+            <span style="font-weight:600; color:#3D3654;">${ca.expected_voltage_rise} / ${ca.actual_voltage_rise} (${ca.voltage_rise_diff_pct > 0 ? '+' : ''}${ca.voltage_rise_diff_pct}%)</span>
+          </div>
+          <div style="display:flex; justify-content:space-between; border-bottom:1px solid #E8E2F0; padding-bottom:3px;">
+            <span style="color:#9B92AE;">Temp Rise (Est/Act):</span>
+            <span style="font-weight:600; color:#3D3654;">${ca.expected_temp_rise} / ${ca.actual_temp_rise} (${ca.temp_rise_diff_pct > 0 ? '+' : ''}${ca.temp_rise_diff_pct}%)</span>
+          </div>
+          <div style="display:flex; justify-content:space-between; padding-bottom:3px;">
+            <span style="color:#9B92AE;">Efficiency (Est/Act):</span>
+            <span style="font-weight:600; color:#3D3654;">${ca.expected_efficiency} / ${ca.actual_efficiency} (${ca.efficiency_diff_pct > 0 ? '+' : ''}${ca.efficiency_diff_pct}%)</span>
+          </div>
+        `;
+      }
+      
+      document.getElementById("cycleChargingInsight").textContent = cycle.state_analysis_msg || "";
+    } else {
+      document.getElementById("cycleChargingSocText").textContent = "No charge cycle active";
+      document.getElementById("cycleChargingActualSocBar").style.width = "0%";
+      document.getElementById("cycleChargingExpectedSocMarker").style.display = "none";
+      document.getElementById("cycleChargingMetrics").innerHTML = `<div style="text-align:center; color:#9B92AE; padding:4px 0;">No active charging data</div>`;
+      document.getElementById("cycleChargingRisks").innerHTML = `<span style="font-size:11px; background:#FAF9FC; color:#9B92AE; padding:3px 8px; border-radius:6px; border: 1px solid #E8E2F0;">Inactive</span>`;
+      document.getElementById("cycleChargingInsight").textContent = "Waiting for charge cycle data to compare with history...";
+    }
+
+    // Column 2: Discharging Condition
+    if (actType === "Discharge") {
+      let actualSag = 0, expectedSag = 0;
+      const sagMsg = cycle.discharging_expected_vs_actual || "";
+      document.getElementById("cycleDischargingSagText").textContent = sagMsg;
+      
+      const sagMatch = sagMsg.match(/Expected Sag:\s*([\d.]+)\s*V\s*\|\s*Actual Sag:\s*([\d.]+)\s*V/);
+      if (sagMatch) {
+        expectedSag = parseFloat(sagMatch[1]);
+        actualSag = parseFloat(sagMatch[2]);
+      }
+      
+      const scale = 3.0; // max sag voltage scale
+      const actualPct = Math.min(100, (actualSag / scale) * 100);
+      const expectedPct = Math.min(100, (expectedSag / scale) * 100);
+      
+      document.getElementById("cycleDischargingActualSagBar").style.width = actualPct + "%";
+      const marker = document.getElementById("cycleDischargingExpectedSagMarker");
+      marker.style.left = expectedPct + "%";
+      marker.style.display = "block";
+      
+      const risks = cycle.discharging_risks_active || [];
+      const risksEl = document.getElementById("cycleDischargingRisks");
+      if (risks.length > 0) {
+        risksEl.innerHTML = risks.map(r => `<span style="font-size:11px; background:#FBE0E0; color:#B05656; padding:3px 8px; border-radius:6px; font-weight:600;">⚠️ ${r}</span>`).join("");
+      } else {
+        risksEl.innerHTML = `<span style="font-size:11px; background:#E0F2E5; color:#5A9670; padding:3px 8px; border-radius:6px; font-weight:600;">No active risks</span>`;
+      }
+      
+      const da = cycle.discharging_analysis;
+      if (da) {
+        document.getElementById("cycleDischargingMetrics").innerHTML = `
+          <div style="display:flex; justify-content:space-between; border-bottom:1px solid #E8E2F0; padding-bottom:3px;">
+            <span style="color:#9B92AE;">Duration (Est/Act):</span>
+            <span style="font-weight:600; color:#3D3654;">${da.expected_duration_str} / ${da.actual_duration_str} (${da.duration_deviation_pct > 0 ? '+' : ''}${da.duration_deviation_pct}%)</span>
+          </div>
+          <div style="display:flex; justify-content:space-between; border-bottom:1px solid #E8E2F0; padding-bottom:3px;">
+            <span style="color:#9B92AE;">Voltage Sag (Est/Act):</span>
+            <span style="font-weight:600; color:#3D3654;">${da.expected_voltage_sag} / ${da.actual_voltage_sag} (${da.voltage_sag_diff_pct > 0 ? '+' : ''}${da.voltage_sag_diff_pct}%)</span>
+          </div>
+          <div style="display:flex; justify-content:space-between; border-bottom:1px solid #E8E2F0; padding-bottom:3px;">
+            <span style="color:#9B92AE;">Temp Rise (Est/Act):</span>
+            <span style="font-weight:600; color:#3D3654;">${da.expected_temp_rise} / ${da.actual_temp_rise} (${da.temp_rise_diff_pct > 0 ? '+' : ''}${da.temp_rise_diff_pct}%)</span>
+          </div>
+          <div style="display:flex; justify-content:space-between; padding-bottom:3px;">
+            <span style="color:#9B92AE;">Efficiency (Est/Act):</span>
+            <span style="font-weight:600; color:#3D3654;">${da.expected_efficiency} / ${da.actual_efficiency} (${da.efficiency_diff_pct > 0 ? '+' : ''}${da.efficiency_diff_pct}%)</span>
+          </div>
+        `;
+      }
+      
+      document.getElementById("cycleDischargingInsight").textContent = cycle.state_analysis_msg || "";
+    } else {
+      document.getElementById("cycleDischargingSagText").textContent = "No discharge cycle active";
+      document.getElementById("cycleDischargingActualSagBar").style.width = "0%";
+      document.getElementById("cycleDischargingExpectedSagMarker").style.display = "none";
+      document.getElementById("cycleDischargingRisks").innerHTML = `<span style="font-size:11px; background:#FAF9FC; color:#9B92AE; padding:3px 8px; border-radius:6px; border: 1px solid #E8E2F0;">Inactive</span>`;
+      document.getElementById("cycleDischargingInsight").textContent = "Waiting for discharge cycle data to compare with history...";
+    }
+
+    // Column 3: Idle / Rest Condition
+    const idleStabilityEl = document.getElementById("cycleIdleStabilityText");
+    idleStabilityEl.textContent = cycle.idle_status_msg || "System stable";
+    if (cycle.idle_status_msg && (cycle.idle_status_msg.includes("Abnormal") || cycle.idle_status_msg.includes("high") || cycle.idle_status_msg.includes("imbalance"))) {
+      idleStabilityEl.style.color = "#B05656";
+    } else {
+      idleStabilityEl.style.color = "#5A9670";
+    }
+    
+    const imbTrend = cycle.cell_imbalance_trend || "Normal";
+    const imbTrendEl = document.getElementById("cycleIdleImbalanceTrend");
+    imbTrendEl.textContent = imbTrend;
+    imbTrendEl.style.color = imbTrend.includes("increasing") ? "#B05656" : "#5A9670";
+    
+    const thermTrend = cycle.thermal_rise_trend || "Normal";
+    const thermTrendEl = document.getElementById("cycleIdleThermalTrend");
+    thermTrendEl.textContent = thermTrend;
+    thermTrendEl.style.color = thermTrend.includes("increasing") ? "#B05656" : "#5A9670";
+    
+    const risksEl = document.getElementById("cycleIdleRisks");
+    if (actType === "Idle") {
+      if (likelyFault !== "None" && likelyFault !== "Normal") {
+        risksEl.innerHTML = `<span style="font-size:11px; background:#FBE0E0; color:#B05656; padding:3px 8px; border-radius:6px; font-weight:600;">⚠️ ${likelyFault}</span>`;
+      } else {
+        risksEl.innerHTML = `<span style="font-size:11px; background:#E0F2E5; color:#5A9670; padding:3px 8px; border-radius:6px; font-weight:600;">No active risks</span>`;
+      }
+      document.getElementById("cycleIdleInsight").textContent = cycle.state_analysis_msg || "";
+    } else {
+      risksEl.innerHTML = `<span style="font-size:11px; background:#FAF9FC; color:#9B92AE; padding:3px 8px; border-radius:6px; border: 1px solid #E8E2F0;">System Active</span>`;
+      document.getElementById("cycleIdleInsight").textContent = "System is in active charging/discharging state.";
+    }
+
+    // Check Stale status
+    const isStale = (d.is_stale === true) || (d.bluetooth_connected === false);
+    const age = d.data_age_seconds || 0.0;
+    if (isStale) {
+      applyStaleUI(age);
+    } else {
+      restoreStaleUI();
+    }
+
+    // ── Push the latest row into a client-side rolling history ──
+    const activeRow = d.live_row || d.latest_row;
+    const activePred = d.prediction || d.latest_prediction;
+    if(activeRow && !isStale){
+      const marker = JSON.stringify(activeRow);
+      if(marker !== lastSeenRowMarker){
+        clientHistory.push(activeRow);
+        if(clientHistory.length > CLIENT_HISTORY_MAX) clientHistory.shift();
+        lastSeenRowMarker = marker;
+      }
+      render(activeRow, clientHistory, activePred, stats, d.live_prediction);
+      document.getElementById('hdrSub').textContent =
+        `Streaming live · ${stats.total_rows_processed||0} rows processed this session`;
+    } else {
+      if (isStale) {
+        document.getElementById('hdrSub').textContent = 'BMS Bluetooth Disconnected / Reconnecting...';
+      } else {
+        document.getElementById('hdrSub').textContent = 'Connected — waiting for first telemetry row…';
+      }
+    }
+  } catch(e){
+    consecutiveErrors++;
+    document.getElementById('liveBadge').className='live-badge offline';
+    if(e.name==='AbortError'){
+      document.getElementById('liveText').textContent='TIMEOUT — backend not responding';
+    } else {
+      document.getElementById('liveText').textContent=`OFFLINE — start the Flask backend (${consecutiveErrors} retries)`;
+    }
+    updateBluetoothStatus({ bluetooth_connected: false, is_stale: true, data_age_seconds: 999.0 });
+    updateAlertsUI([{
+      type: "BMS Dashboard Offline",
+      level: "CRITICAL",
+      parameter: "Dashboard Backend",
+      value: "Offline",
+      threshold: "Online",
+      reason: "CRITICAL: The Flask backend is offline or unreachable.",
+      timestamp: new Date().toLocaleString(),
+      action: "Restart the Python backend on the Raspberry Pi (python bms_dashboard_backend.py)."
+    }], []);
+  }
+}
+
+// ─────────────────────────────────────────────
+//  INIT
+// ─────────────────────────────────────────────
+initTrend();
+poll();
+setInterval(poll, 1000);
+</script>
+</body>
+</html>
