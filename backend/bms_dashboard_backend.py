@@ -2116,7 +2116,6 @@ def add_telemetry():
         
     except Exception as e:
         import traceback
-        import os
         log_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "backend_error.log")
         with open(log_path, "a") as f:
             f.write(f"\n--- ERROR ON POST telemetry ---\n")

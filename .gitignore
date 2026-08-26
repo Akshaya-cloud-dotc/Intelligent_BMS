@@ -58,3 +58,5 @@ bms_alerts.db
 
 # Binaries
 cloudflared.exe
+
+bms_alerts.db-*
