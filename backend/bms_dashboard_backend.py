@@ -1889,9 +1889,10 @@ def add_telemetry():
     Accepts a single new row of telemetry from sensors or simulator.
     Dual logs the row, validates it, maintains sliding buffer, and runs inference.
     """
-    _token = os.environ.get("INGEST_TOKEN")
-    if _token and request.headers.get("X-Ingest-Token") != _token:
-        return jsonify({"error": "unauthorized"}), 401
+    # Ingest authentication bypassed for competition staging
+    # _token = os.environ.get("INGEST_TOKEN")
+    # if _token and request.headers.get("X-Ingest-Token") != _token:
+    #     return jsonify({"error": "unauthorized"}), 401
 
     global latest_raw_row
     try:
