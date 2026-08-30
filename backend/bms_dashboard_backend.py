@@ -182,7 +182,8 @@ history_stats = {
     "min_voltage": 999.0,
     "cumulative_delta_v": 0.0,
     "mode_counts": {"ACCEL": 0, "CRUISE": 0, "DECEL": 0, "IDLE": 0},
-    "fault_counts": {"Normal": 0, "Cell Imbalance": 0, "Weak Cell": 0, "Overvoltage Risk": 0, "Undervoltage Risk": 0, "Overtemperature Risk": 0}
+    "fault_counts": {"Normal": 0, "Cell Imbalance": 0, "Weak Cell": 0, "Overvoltage Risk": 0, "Undervoltage Risk": 0, "Overtemperature Risk": 0},
+    "cumulative_energy_wh": 0.0
 }
 
 def update_history_stats(row, prediction=None):
@@ -208,6 +209,12 @@ def update_history_stats(row, prediction=None):
     # Cumulative delta_v (for average imbalance calculations)
     dv = float(row.get("delta_v", 0.0))
     history_stats["cumulative_delta_v"] += dv
+
+    # Cumulative energy (Wh) = Power (W) * time (hours)
+    # Assumes ~1 second interval (1/3600 hour)
+    curr = float(row.get("current", 0.0))
+    p = v * curr
+    history_stats["cumulative_energy_wh"] += (abs(p) / 3600.0)
     
     # If prediction is available, increment state and fault occurrences
     if prediction:
@@ -1990,7 +1997,8 @@ def add_telemetry():
                     "min_voltage": history_stats["min_voltage"] if history_stats["min_voltage"] != 999.0 else None,
                     "avg_delta_v": round(avg_delta_v, 4),
                     "mode_counts": history_stats["mode_counts"],
-                    "fault_counts": history_stats["fault_counts"]
+                    "fault_counts": history_stats["fault_counts"],
+                    "cumulative_energy_wh": round(history_stats["cumulative_energy_wh"], 3)
                 }
             })
             
@@ -2109,7 +2117,8 @@ def add_telemetry():
                 "min_voltage": history_stats["min_voltage"] if history_stats["min_voltage"] != 999.0 else None,
                 "avg_delta_v": round(avg_delta_v, 4),
                 "mode_counts": history_stats["mode_counts"],
-                "fault_counts": history_stats["fault_counts"]
+                "fault_counts": history_stats["fault_counts"],
+                "cumulative_energy_wh": round(history_stats["cumulative_energy_wh"], 3)
             }
         }
         return jsonify(response_data)
@@ -2179,7 +2188,8 @@ def get_current_status():
                 "min_voltage": history_stats["min_voltage"] if history_stats["min_voltage"] != 999.0 else None,
                 "avg_delta_v": round(avg_delta_v, 4),
                 "mode_counts": history_stats["mode_counts"],
-                "fault_counts": history_stats["fault_counts"]
+                "fault_counts": history_stats["fault_counts"],
+                "cumulative_energy_wh": round(history_stats["cumulative_energy_wh"], 3)
             }
         })
     except Exception as e:
@@ -2305,7 +2315,8 @@ def reset_buffer():
         "min_voltage": 999.0,
         "cumulative_delta_v": 0.0,
         "mode_counts": {"ACCEL": 0, "CRUISE": 0, "DECEL": 0, "IDLE": 0},
-        "fault_counts": {"Normal": 0, "Cell Imbalance": 0, "Weak Cell": 0, "Overvoltage Risk": 0, "Undervoltage Risk": 0, "Overtemperature Risk": 0}
+        "fault_counts": {"Normal": 0, "Cell Imbalance": 0, "Weak Cell": 0, "Overvoltage Risk": 0, "Undervoltage Risk": 0, "Overtemperature Risk": 0},
+        "cumulative_energy_wh": 0.0
     }
     return jsonify({"status": "buffer and historical stats reset successful"})
 

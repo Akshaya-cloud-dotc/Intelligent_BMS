@@ -25,9 +25,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .g6{grid-template-columns:repeat(6,1fr)}
 .g3{grid-template-columns:repeat(3,1fr)}
 .g2{grid-template-columns:repeat(2,1fr)}
-@media(max-width:1100px){.g6{grid-template-columns:repeat(3,1fr)}}
+.g4{grid-template-columns:repeat(4,1fr)}
+@media(max-width:1100px){.g6{grid-template-columns:repeat(3,1fr)}.g4{grid-template-columns:repeat(2,1fr)}}
 @media(max-width:800px){.g3{grid-template-columns:1fr}.g2{grid-template-columns:1fr}}
-@media(max-width:500px){.g6{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:500px){.g6{grid-template-columns:repeat(2,1fr)}.g4{grid-template-columns:1fr}}
 
 /* ── Cards & Params ── */
 .param{background:#FFF;border:1px solid #E8E2F0;border-radius:10px;padding:.85rem .9rem}
@@ -296,7 +297,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 <!-- ── Layer 1: Real-Time Parameters ── -->
 <div class="card">
   <div class="card-title">Monitored Parameters — Real-Time Sensing (Layer 1)</div>
-  <div class="grid g6" id="paramGrid" style="margin-bottom:0"></div>
+  <div class="grid g4" id="paramGrid" style="margin-bottom:0"></div>
 </div>
 
 <!-- ── Charge State + ΔV + dV/dt ── -->
@@ -1442,12 +1443,17 @@ function render(latest, history, prediction, stats, livePrediction){
   // ── Parameters ──
   const socAvail = latest.soc !== undefined && latest.soc !== null;
   const hasCellData = CELLS.some(c => latest[c] !== undefined && latest[c] !== null);
+  const power = num(latest.voltage) * num(latest.current);
+  const energy = stats && stats.cumulative_energy_wh !== undefined ? num(stats.cumulative_energy_wh) : 0.0;
+  
   const params=[
     {l:'Pack Voltage',v:num(latest.voltage).toFixed(2),u:'V',pct:num(latest.voltage)/33.6*100,col:'#5589B0'},
     {l:'Current',v:num(latest.current).toFixed(2),u:'A',pct:Math.min(100,Math.abs(cur)/OC_LIMIT*100),col:cur > 0.05 ? '#5589B0' : (cur < -0.05 ? '#C8814D' : '#5A9670')},
+    {l:'Power',v:power.toFixed(1),u:'W',pct:Math.min(100,Math.abs(power)/1000*100),col:power > 5 ? '#5589B0' : (power < -5 ? '#C8814D' : '#5A9670')},
+    {l:'Energy',v:energy.toFixed(3),u:'Wh',pct:Math.min(100,energy/100*100),col:'#8D82A9'},
     latest.temperature !== undefined && latest.temperature !== null
       ? {l:'Temperature',v:num(latest.temperature).toFixed(1),u:'°C',pct:Math.min(100,num(latest.temperature)/OT_DANGER*100),col:num(latest.temperature)>=OT_DANGER?'#B05656':num(latest.temperature)>=OT_WARN?'#A8853D':'#5A9670'}
-      : {l:'Temperature',v:'Temperature unavailable',u:'',pct:0,col:'#9B92AE'},
+      : {l:'Temperature',v:'n/a',u:'',pct:0,col:'#9B92AE'},
     socAvail
       ? {l:'SOC',v:num(latest.soc).toFixed(0),u:'%',pct:num(latest.soc),col:'#8D82A9'}
       : {l:'SOC',v:'n/a',u:'',pct:0,col:'#C9C2D8'},
