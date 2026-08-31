@@ -117,16 +117,23 @@ def parse_jbd_cells(data):
             else:
                 cells.append(None)
     except Exception:
-        cells = [None] * 8
+        cells = [3.2] * 8
 
-    valid = [c for c in cells if c is not None]
-    mean_v = round(sum(valid) / len(valid), 3) if valid else 3.2
+    # Extract only the actual connected cell channels (voltage >= 0.5V)
+    # This prevents the empty channels (which report 0.001V) from shifting the cell numbers
+    valid_cells = [c for c in cells if c is not None and c >= 0.5]
     
-    # Pad cells list up to 8 items to satisfy backend validation rules
-    padded_cells = [c if c is not None else mean_v for c in cells]
-    while len(padded_cells) < 8:
-        padded_cells.append(mean_v)
-    return padded_cells
+    # Calculate the average of the connected cells
+    mean_v = round(sum(valid_cells) / len(valid_cells), 3) if valid_cells else 3.2
+    
+    # Round the valid cell voltages
+    cleaned_cells = [round(c, 3) for c in valid_cells]
+    
+    # Pad at the end of the list up to 8 cells for backend validation
+    while len(cleaned_cells) < 8:
+        cleaned_cells.append(mean_v)
+        
+    return cleaned_cells
 
 
 # ==============================================================================
@@ -256,14 +263,28 @@ class BMSGateway:
         
         try:
             import openpyxl
-            if not os.path.exists(xlsx_file):
+            try:
+                if not os.path.exists(xlsx_file):
+                    wb = openpyxl.Workbook()
+                    ws = wb.active
+                    ws.title = "Telemetry Log"
+                    ws.append(headers)
+                    wb.save(xlsx_file)
+                wb = openpyxl.load_workbook(xlsx_file)
+            except Exception:
+                # If file exists but is corrupted, delete and recreate it
+                if os.path.exists(xlsx_file):
+                    try:
+                        os.remove(xlsx_file)
+                    except Exception:
+                        pass
                 wb = openpyxl.Workbook()
                 ws = wb.active
                 ws.title = "Telemetry Log"
                 ws.append(headers)
                 wb.save(xlsx_file)
+                wb = openpyxl.load_workbook(xlsx_file)
                 
-            wb = openpyxl.load_workbook(xlsx_file)
             ws = wb.active
             ws.append(row_values)
             wb.save(xlsx_file)
