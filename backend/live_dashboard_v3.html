@@ -177,42 +177,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .alert-btn-ack:hover { background: #964242; }
 .alert-btn-close { background: #E8E2F0; color: #5B5470; }
 .alert-btn-close:hover { background: #D6CFE2; }
-
-/* ── UI Micro-interactions & Motion UI ── */
-.card, .param, .mode-badge {
-  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.25s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.25s ease;
-}
-.card:hover, .param:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 10px 20px rgba(141, 130, 169, 0.08);
-  border-color: #C8B6E2;
-}
-
-/* Scroll Reveal */
-.scroll-reveal {
-  opacity: 0;
-  transform: translateY(20px);
-  transition: opacity 0.6s cubic-bezier(0.4, 0, 0.2, 1), transform 0.6s cubic-bezier(0.4, 0, 0.2, 1);
-}
-.scroll-reveal.revealed {
-  opacity: 1;
-  transform: translateY(0);
-}
-
-/* Entrance Animations */
-.entrance-fade-in {
-  opacity: 0;
-  animation: entranceFadeIn 0.6s cubic-bezier(0.4, 0, 0.2, 1) forwards;
-}
-.stagger-1 { animation-delay: 0.05s; }
-.stagger-2 { animation-delay: 0.1s; }
-.stagger-3 { animation-delay: 0.15s; }
-.stagger-4 { animation-delay: 0.2s; }
-
-@keyframes entranceFadeIn {
-  from { opacity: 0; transform: translateY(15px); }
-  to { opacity: 1; transform: translateY(0); }
-}
 </style>
 </head>
 <body>
@@ -296,7 +260,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 </div>
 
 <!-- ── ML Inference Details & Anomaly (OOD) Detection ── -->
-<div class="card entrance-fade-in stagger-1" style="border-color: #8D82A9; border-width: 1.5px;">
+<div class="card" style="border-color: #8D82A9; border-width: 1.5px;">
   <div class="card-title">🧠 ML Inference & Anomaly (OOD) Detection (Layer 2)</div>
   
   <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 15px; background: #FAF9FC; border: 1px solid #E8E2F0; border-radius: 12px; padding: 1rem;">
@@ -331,13 +295,13 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 </div>
 
 <!-- ── Layer 1: Real-Time Parameters ── -->
-<div class="card entrance-fade-in stagger-2">
+<div class="card">
   <div class="card-title">Monitored Parameters — Real-Time Sensing (Layer 1)</div>
   <div class="grid g4" id="paramGrid" style="margin-bottom:0"></div>
 </div>
 
 <!-- ── Charge State + ΔV + dV/dt ── -->
-<div class="grid g3 entrance-fade-in stagger-3">
+<div class="grid g3">
   <div class="card" style="margin-bottom:0">
     <div class="card-title">Charge / Discharge State</div>
     <div id="chgBadgeWrap" style="text-align:center;padding:.5rem 0"></div>
@@ -345,20 +309,20 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
   </div>
   <div class="param" style="margin-bottom:0">
     <div class="param-lbl">ΔV — Cell Imbalance</div>
-    <div class="param-val" id="dvVal"><span class="num">—</span><span class="param-unit"> V</span></div>
+    <div class="param-val" id="dvVal">—</div>
     <div class="param-bar"><div class="param-fill" id="dvBar"></div></div>
     <div style="font-size:10px;margin-top:5px" id="dvStatus"></div>
   </div>
   <div class="param" style="margin-bottom:0">
     <div class="param-lbl">dV/dt — Rate of Rise</div>
-    <div class="param-val" id="dvdtVal"><span class="num">—</span><span class="param-unit"> mV/s</span></div>
+    <div class="param-val" id="dvdtVal">—</div>
     <div class="param-bar"><div class="param-fill" id="dvdtBar"></div></div>
     <div style="font-size:10px;color:#A89FB8;margin-top:5px">6-second window trend</div>
   </div>
 </div>
 
 <!-- ── PREDICTION PANEL ── -->
-<div class="pred-panel entrance-fade-in stagger-4" style="margin-top:12px">
+<div class="pred-panel" style="margin-top:12px">
   <div class="pred-title">🧠 Charge / Discharge Prediction — Smoothed Live SOC-Rate</div>
   <div class="pred-grid">
 
@@ -405,7 +369,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 
 <!-- ── Cycle Health Analytics ── -->
 <!-- ── Cycle Health Analytics (Prominent Panel) ── -->
-<div class="card scroll-reveal" id="cycleAnalyticsCard" style="background:#FFF; border-color:#8D82A9; border-width:1.5px; box-shadow: 0 4px 20px rgba(141, 130, 169, 0.1);">
+<div class="card" id="cycleAnalyticsCard" style="background:#FFF; border-color:#8D82A9; border-width:1.5px; box-shadow: 0 4px 20px rgba(141, 130, 169, 0.1);">
   <div class="card-title" style="font-size:16px; color:#3D3654; border-bottom:1px solid #E8E2F0; padding-bottom:8px; margin-bottom:16px; display:flex; justify-content:space-between; align-items:center;">
     <span>🔄 Cycle Health Analysis (Historical Comparison Engine)</span>
     <div style="font-size:11px; color:#8E7FB0; font-weight:normal;">Growing historical comparison (Cycle N vs Avg of Cycles 1 to N-1)</div>
@@ -572,7 +536,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 </div>
 
 <!-- ── Cell Voltages ── -->
-<div class="card scroll-reveal">
+<div class="card">
   <div class="card-title">Individual Cell Voltages — 8 Cells (V)</div>
   <div class="cell-grid" id="cellGrid"></div>
 </div>
@@ -586,7 +550,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 </div>
 
 <!-- ── Alert History Section ── -->
-<div class="card scroll-reveal" style="margin-top: 15px;">
+<div class="card" style="margin-top: 15px;">
   <div class="card-title" style="font-size:13px; color:#3D3654; border-bottom:1px solid #E8E2F0; padding-bottom:8px; margin-bottom:12px; display:flex; justify-content:space-between; align-items:center;">
     <span>📜 System Alert History</span>
     <div style="font-size:11px; color:#9B92AE; font-weight:normal;">Latest 10 to 20 resolved and triggered events</div>
@@ -1071,21 +1035,6 @@ let lastFlow=null;                      // 'CHG' | 'DIS' | 'IDLE' — to reset o
 // ─────────────────────────────────────────────
 function num(v){const x=parseFloat(v);return isNaN(x)?0:x;}
 
-function animateValue(el, start, end, duration, decimals = 2) {
-  if (!el) return;
-  let startTimestamp = null;
-  const step = (timestamp) => {
-    if (!startTimestamp) startTimestamp = timestamp;
-    const progress = Math.min((timestamp - startTimestamp) / duration, 1);
-    const val = progress * (end - start) + start;
-    el.textContent = val.toFixed(decimals);
-    if (progress < 1) {
-      window.requestAnimationFrame(step);
-    }
-  };
-  window.requestAnimationFrame(step);
-}
-
 function fmtSec(s){
   if(s<=0) return '0s';
   const h=Math.floor(s/3600), m=Math.floor((s%3600)/60), ss=Math.floor(s%60);
@@ -1515,77 +1464,22 @@ function render(latest, history, prediction, stats, livePrediction){
       ? {l:'Min Cell V',v:f.vmin.toFixed(3),u:'V',pct:f.vmin/CELL_MAX*100,col:f.vmin<CELL_MIN?'#B05656':'#5589B0'}
       : {l:'Min Cell V',v:'n/a',u:'',pct:0,col:'#C9C2D8'},
   ];
-  const paramGrid = document.getElementById('paramGrid');
-  if (paramGrid.children.length !== params.length) {
-    paramGrid.innerHTML = params.map((p, idx) => `
-      <div class="param">
-        <div class="param-lbl">${p.l}</div>
-        <div class="param-val" id="param-val-${idx}" style="color:${p.col}">
-          <span class="num">—</span><span class="param-unit"> ${p.u}</span>
-        </div>
-        <div class="param-bar">
-          <div class="param-fill" id="param-bar-${idx}" style="width:0%;background:${p.col}"></div>
-        </div>
-      </div>
-    `).join('');
-  }
-
-  params.forEach((p, idx) => {
-    const valEl = document.getElementById(`param-val-${idx}`);
-    const numEl = valEl ? valEl.querySelector('.num') : null;
-    const barEl = document.getElementById(`param-bar-${idx}`);
-    
-    if (numEl) {
-      const decimals = p.l === 'Energy' ? 3 : (p.l === 'Max Cell V' || p.l === 'Min Cell V' ? 3 : (p.l === 'Pack Voltage' || p.l === 'Current' ? 2 : (p.l === 'SOC' ? 0 : 1)));
-      const targetVal = parseFloat(p.v);
-      if (!isNaN(targetVal)) {
-        const prevVal = parseFloat(valEl.dataset.prevVal) || 0;
-        if (prevVal !== targetVal) {
-          animateValue(numEl, prevVal, targetVal, 300, decimals);
-          valEl.dataset.prevVal = targetVal;
-        }
-      } else {
-        numEl.textContent = p.v;
-      }
-      valEl.style.color = p.col;
-    }
-    
-    if (barEl) {
-      barEl.style.width = `${Math.max(0, Math.min(100, p.pct))}%`;
-      barEl.style.background = p.col;
-    }
-  });
+  document.getElementById('paramGrid').innerHTML=params.map(p=>`
+    <div class="param"><div class="param-lbl">${p.l}</div>
+    <div class="param-val" style="color:${p.col}">${p.v}<span class="param-unit"> ${p.u}</span></div>
+    <div class="param-bar"><div class="param-fill" style="width:${Math.max(0,Math.min(100,p.pct))}%;background:${p.col}"></div></div></div>`).join('');
 
   // ── Mode badge ──
   document.getElementById('modeBadgeWrap').innerHTML=`<span class="mode-badge" style="background:${mode.b};color:${mode.c}">${mode.i} ${latest._overriddenMode}</span>`;
 
   // ── ΔV & dV/dt ──
-  const dvValEl = document.getElementById('dvVal');
-  const dvNumEl = dvValEl ? dvValEl.querySelector('.num') : null;
-  if (dvNumEl) {
-    const targetDv = num(f.dv);
-    const prevDv = parseFloat(dvValEl.dataset.prevVal) || 0;
-    if (prevDv !== targetDv) {
-      animateValue(dvNumEl, prevDv, targetDv, 300, 3);
-      dvValEl.dataset.prevVal = targetDv;
-    }
-  }
+  document.getElementById('dvVal').innerHTML=`${f.dv.toFixed(3)}<span class="param-unit"> V</span>`;
   const dvc=f.dv>0.30?'#B05656':f.dv>0.15?'#A8853D':'#5A9670';
   document.getElementById('dvBar').style.width=Math.min(100,f.dv/0.4*100)+'%';
   document.getElementById('dvBar').style.background=dvc;
   const dvs=document.getElementById('dvStatus');
   dvs.textContent=f.dv>0.30?'Severe imbalance':f.dv>0.15?'Moderate imbalance':'Healthy';dvs.style.color=dvc;
-
-  const dvdtValEl = document.getElementById('dvdtVal');
-  const dvdtNumEl = dvdtValEl ? dvdtValEl.querySelector('.num') : null;
-  if (dvdtNumEl) {
-    const targetDvdt = num(f.dvdt);
-    const prevDvdt = parseFloat(dvdtValEl.dataset.prevVal) || 0;
-    if (prevDvdt !== targetDvdt) {
-      animateValue(dvdtNumEl, prevDvdt, targetDvdt, 300, 1);
-      dvdtValEl.dataset.prevVal = targetDvdt;
-    }
-  }
+  document.getElementById('dvdtVal').innerHTML=`${f.dvdt.toFixed(1)}<span class="param-unit"> mV/s</span>`;
   document.getElementById('dvdtBar').style.width=Math.min(100,Math.abs(f.dvdt)/10*100)+'%';
   document.getElementById('dvdtBar').style.background=f.dvdt>3?'#A8853D':'#8EC5E8';
 
@@ -2100,22 +1994,6 @@ async function poll(){
 initTrend();
 poll();
 setInterval(poll, 1000);
-
-// ── Scroll Reveal Observer ──
-document.addEventListener("DOMContentLoaded", () => {
-  const observer = new IntersectionObserver((entries) => {
-    entries.forEach(entry => {
-      if (entry.isIntersecting) {
-        entry.target.classList.add('revealed');
-        observer.unobserve(entry.target);
-      }
-    });
-  }, { threshold: 0.1 });
-
-  document.querySelectorAll('.scroll-reveal').forEach(el => {
-    observer.observe(el);
-  });
-});
 </script>
 </body>
 </html>
