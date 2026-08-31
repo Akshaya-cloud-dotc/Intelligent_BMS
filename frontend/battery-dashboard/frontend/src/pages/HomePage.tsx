@@ -57,7 +57,7 @@ const HomePage = () => {
             <h2 className="text-[24px] md:text-[32px] font-bold tracking-widest uppercase mb-8" style={{ color: '#4A4A4A' }}>FAULT DETECTION</h2>
             <button 
               onClick={() => {
-                window.location.href = 'http://127.0.0.1:5000/';
+                window.location.href = window.location.origin + '/live-monitor';
               }}
               className="px-6 py-3 rounded-full font-semibold self-start flex items-center gap-2 transition-colors"
               style={{ backgroundColor: '#F0F0F0', color: '#555555' }}

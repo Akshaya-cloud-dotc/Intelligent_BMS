@@ -2349,9 +2349,19 @@ def live_bms_data_mirror():
     else:
         return get_current_status()
 
+# ── React Configurator & PDF API Integration ──
+frontend_build_path = os.path.join(MODEL_DIR, "dist")
+
 @app.route('/')
+def serve_react_root():
+    """Serves the React frontend built index.html from the root URL (landing page)."""
+    if not os.path.exists(frontend_build_path):
+        return "React frontend build directory not found. Please build the React frontend using 'npm run build' inside the React directory.", 404
+    return send_from_directory(frontend_build_path, 'index.html')
+
+@app.route('/live-monitor')
 def serve_dashboard():
-    """Serves the HTML dashboard frontend from the root URL."""
+    """Serves the live telemetry HTML dashboard frontend."""
     return send_from_directory(MODEL_DIR, 'live_dashboard_v3.html')
 
 @app.route('/health', methods=['GET', 'OPTIONS'])
@@ -2366,9 +2376,6 @@ def health_check():
     response.headers['Access-Control-Allow-Methods'] = 'GET, OPTIONS'
     response.headers['Access-Control-Allow-Headers'] = 'Content-Type'
     return response
-
-# ── React Configurator & PDF API Integration ──
-frontend_build_path = os.path.join(MODEL_DIR, "dist")
 
 @app.route('/configurator')
 @app.route('/configurator/<path:path>')
