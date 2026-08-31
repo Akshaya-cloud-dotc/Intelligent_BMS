@@ -2,8 +2,17 @@ import os
 import sys
 import csv
 import time
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 import pandas as pd
+
+# Define Indian Standard Time (IST) timezone
+IST = timezone(timedelta(hours=5, minutes=30))
+
+def get_now():
+    return datetime.now(IST)
+
+def get_now_str():
+    return datetime.now(IST).strftime("%Y-%m-%d %H:%M:%S")
 from flask import Flask, request, jsonify, send_from_directory, send_file
 import json
 
@@ -26,8 +35,13 @@ app = Flask(__name__)
 # Initialize persistent alerts DB at module level
 try:
     alerts.init_db()
+    # Auto-register configured SMTP_USER as the active alert recipient on startup
+    _smtp_user = os.environ.get("SMTP_USER")
+    if _smtp_user:
+        alerts.add_recipient(_smtp_user, min_severity="CRITICAL")
+        print(f"SMTP recipient automatically registered: {_smtp_user}")
 except Exception as e:
-    print(f"Error initializing persistent alerts database: {e}")
+    print(f"Error initializing persistent database and recipient: {e}")
 
 from flask_cors import CORS
 CORS(app)
@@ -99,7 +113,7 @@ def log_to_csv(filepath, row, prediction=None):
     
     timestamp = row.get("timestamp")
     if not timestamp:
-        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        timestamp = get_now_str()
         
     voltage = float(row.get("voltage", 0.0))
     current = float(row.get("current", 0.0))
@@ -616,7 +630,7 @@ def calculate_stress_score(row, cfg):
 
 def evaluate_alerts(row, prediction, cfg, cycle_analytics):
     new_alerts = []
-    now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    now_str = get_now_str()
     
     # Extract values
     voltage = float(row.get("voltage", 25.6))
@@ -1144,7 +1158,7 @@ def evaluate_alerts(row, prediction, cfg, cycle_analytics):
 def update_alerts_state(new_active_list):
     global active_alerts, alert_history
     with alert_lock:
-        now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        now_str = get_now_str()
         new_keys = {a["type"] for a in new_active_list}
         
         for old_a in active_alerts:
@@ -1175,7 +1189,7 @@ def get_formatted_alert_history():
             
             ts_str = h["ts"]
             try:
-                _ts = datetime.fromisoformat(h["ts"]).astimezone()
+                _ts = datetime.fromisoformat(h["ts"]).astimezone(IST)
                 ts_str = _ts.strftime("%Y-%m-%d %H:%M:%S")
             except Exception:
                 ts_str = h["ts"]
@@ -1183,7 +1197,7 @@ def get_formatted_alert_history():
             cleared_ts = "ACTIVE"
             if h["resolved_at"] is not None:
                 try:
-                    _res = datetime.fromisoformat(h["resolved_at"]).astimezone()
+                    _res = datetime.fromisoformat(h["resolved_at"]).astimezone(IST)
                     cleared_ts = _res.strftime("%Y-%m-%d %H:%M:%S")
                 except Exception:
                     cleared_ts = h["resolved_at"]
@@ -1267,7 +1281,7 @@ def run_alerts_evaluation():
         age = bms_debug_state["data_age_seconds"]
         
     new_active = []
-    now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    now_str = get_now_str()
     
     if not bt_connected:
         pass
@@ -1387,7 +1401,7 @@ def close_active_cycle(reason="transition"):
             "cycle_id": active_cycle["cycle_id"],
             "type": active_cycle["type"],
             "start_time": active_cycle["start_time"],
-            "end_time": end_row.get("timestamp") or datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "end_time": end_row.get("timestamp") or get_now_str(),
             "duration_sec": int(duration),
             "start_soc": round(start_soc, 1),
             "end_soc": round(end_soc, 1),
@@ -1458,7 +1472,7 @@ def update_cycle_tracking(row):
                 active_cycle = {
                     "cycle_id": new_id,
                     "type": inst_state,
-                    "start_time": timestamp_str or datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                    "start_time": timestamp_str or get_now_str(),
                     "start_time_epoch": current_time,
                     "start_soc": soc,
                     "start_voltage": voltage,
@@ -1950,7 +1964,7 @@ def add_telemetry():
                 bms_debug_state["raw_packet_hex"] = "SIMULATION_DATA"
                 bms_debug_state["packet_count"] += 1
                 
-            bms_debug_state["dashboard_update_time"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            bms_debug_state["dashboard_update_time"] = get_now_str()
 
         # 2. Log raw row immediately
         log_to_csv(RAW_LOG_PATH, new_row)
