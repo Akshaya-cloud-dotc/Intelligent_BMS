@@ -442,7 +442,8 @@ class BMSGateway:
                     v, i, soc, t, ntc1, ntc2, ntc3, ntc4 = parse_jbd_basic(self.response_basic)
                     cells = parse_jbd_cells(self.response_cells)
                     # Keep the true total pack voltage from basic info instead of summing padded cells
-                    delta_v = round(max(cells) - min(cells), 4)
+                    active_cells = [c for c in cells if c >= 0.5]
+                    delta_v = round(max(active_cells) - min(active_cells), 4) if active_cells else 0.0
                     
                     # Print raw packet debug output
                     print("--------------------------------------------------")

@@ -217,10 +217,11 @@ def run_inference(df_60, model_dir):
     all_probs_dict = {label_map[i]: float(probs[i]) for i in range(len(label_map))}
     
     # --- 4.5 Physics-Informed ML Correction (Override ML predictions using physical state bounds) ---
-    latest_delta_v = float(df['delta_v'].iloc[-1])
     latest_cells = [float(df[f'cell_v{i}'].iloc[-1]) for i in range(1, 9)]
-    min_cell_v = min(latest_cells)
-    max_cell_v = max(latest_cells)
+    active_cells = [c for c in latest_cells if c >= 0.5]
+    min_cell_v = min(active_cells) if active_cells else 3.2
+    max_cell_v = max(active_cells) if active_cells else 3.2
+    latest_delta_v = max_cell_v - min_cell_v
     latest_temp = float(df['temperature'].iloc[-1])
     
     min_limit = _cached_limits["min_limit"]

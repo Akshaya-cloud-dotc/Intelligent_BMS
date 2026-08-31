@@ -638,16 +638,17 @@ def evaluate_alerts(row, prediction, cfg, cycle_analytics):
     temp_val = row.get("temperature")
     temperature = float(temp_val) if temp_val is not None else None
     soc = float(row.get("soc", 50.0))
-    delta_v = float(row.get("delta_v", 0.0))
-    
     cell_voltages = []
     for i in range(1, 9):
         cv = row.get(f"cell_v{i}")
         if cv is not None:
-            cell_voltages.append(float(cv))
+            val = float(cv)
+            if val >= 0.5:  # Ignore empty/disconnected channels (< 0.5V)
+                cell_voltages.append(val)
             
     max_cell = max(cell_voltages) if cell_voltages else (voltage / 8.0)
     min_cell = min(cell_voltages) if cell_voltages else (voltage / 8.0)
+    delta_v = max_cell - min_cell
     
     # 1. Overvoltage risk
     if max_cell >= cfg["cell_critical_max"]:
@@ -2025,6 +2026,11 @@ def add_telemetry():
         global filtered_state
         smoothed_row = new_row.copy()
         
+        # Identify connected cells to get an average for padding empty cells in calculations/ML
+        raw_cell_vals = [float(new_row[f"cell_v{i}"]) for i in range(1, 9) if new_row.get(f"cell_v{i}") is not None]
+        active_cell_vals = [v for v in raw_cell_vals if v >= 0.5]
+        mean_active_v = round(sum(active_cell_vals) / len(active_cell_vals), 3) if active_cell_vals else 3.2
+
         keys_to_smooth = ["voltage", "current", "temperature"] + [f"cell_v{i}" for i in range(1, 9)]
         for key in keys_to_smooth:
             if key in new_row:
@@ -2032,6 +2038,11 @@ def add_telemetry():
                     smoothed_row[key] = None
                     continue
                 val = float(new_row[key])
+                
+                # For calculations, smooth, and ML, use the average for empty/disconnected channels (< 0.5V)
+                if key.startswith("cell_v") and val < 0.5:
+                    val = mean_active_v
+                    
                 if key not in filtered_state or filtered_state[key] is None:
                     filtered_state[key] = val
                 else:
@@ -2040,8 +2051,10 @@ def add_telemetry():
                     filtered_state[key] = round(alpha * val + (1.0 - alpha) * filtered_state[key], 4)
                 smoothed_row[key] = filtered_state[key]
                 
+        # Calculate delta_v ONLY from active cell voltages (value >= 0.5V)
         cell_voltages = [smoothed_row[f"cell_v{i}"] for i in range(1, 9)]
-        smoothed_row["delta_v"] = round(max(cell_voltages) - min(cell_voltages), 4)
+        active_voltages = [v for v in cell_voltages if v >= 0.5]
+        smoothed_row["delta_v"] = round(max(active_voltages) - min(active_voltages), 4) if active_voltages else 0.0
 
         # Extraction and debug logging helper
         def extract_raw_temp_bytes_from_hex(raw_hex):
