@@ -37,9 +37,6 @@ const HomePage = () => {
           transition={{ duration: 0.6 }}
           className="relative max-w-4xl mx-auto z-10"
         >
-          <span className="px-3 py-1.5 rounded-full text-xs font-semibold uppercase tracking-wider bg-indigo-500/20 text-indigo-300 border border-indigo-400/20">
-            Caterpillar Tech Challenge 2026
-          </span>
           <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold tracking-tight mt-6 mb-4 text-white leading-tight">
             Intelligent Battery Management System
           </h1>
