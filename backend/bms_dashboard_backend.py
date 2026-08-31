@@ -2368,7 +2368,7 @@ def health_check():
     return response
 
 # ── React Configurator & PDF API Integration ──
-frontend_build_path = os.path.join(MODEL_DIR, "..", "frontend", "battery-dashboard", "frontend", "dist")
+frontend_build_path = os.path.join(MODEL_DIR, "dist")
 
 @app.route('/configurator')
 @app.route('/configurator/<path:path>')

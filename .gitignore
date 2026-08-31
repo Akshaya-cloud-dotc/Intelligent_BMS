@@ -63,3 +63,4 @@ bms_alerts.db-*
 
 # Allow the built React production assets to be staged and deployed
 !frontend/battery-dashboard/frontend/dist/**
+!backend/dist/**
