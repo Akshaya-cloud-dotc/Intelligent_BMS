@@ -1,8 +1,8 @@
 import { CellParameters, CalculationResponse } from '../types';
 
-const API_BASE_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' 
-  ? 'http://localhost:8000' 
-  : 'https://floppy-sites-ring.loca.lt';
+const API_BASE_URL = window.location.origin.includes('localhost:5173') 
+  ? 'http://localhost:5000/api' 
+  : window.location.origin + '/api';
 
 export const uploadPdf = async (file: File): Promise<CellParameters> => {
   const formData = new FormData();

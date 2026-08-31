@@ -16,6 +16,10 @@ import datasheet_parser
 from werkzeug.utils import secure_filename
 import alerts
 import mailer
+import subprocess
+import io
+from parser import extract_parameters_from_pdf
+from calculator import calculate_pack_data
 
 app = Flask(__name__)
 
@@ -2362,6 +2366,163 @@ def health_check():
     response.headers['Access-Control-Allow-Methods'] = 'GET, OPTIONS'
     response.headers['Access-Control-Allow-Headers'] = 'Content-Type'
     return response
+
+# ── React Configurator & PDF API Integration ──
+frontend_build_path = os.path.join(MODEL_DIR, "..", "frontend", "battery-dashboard", "frontend", "dist")
+
+@app.route('/configurator')
+@app.route('/configurator/<path:path>')
+def serve_configurator(path=None):
+    """Serves the static React build for the battery parameters configurator."""
+    if not os.path.exists(frontend_build_path):
+        return "React frontend build directory not found. Please build the React frontend using 'npm run build' inside the React directory.", 404
+    
+    if path is None:
+        return send_from_directory(frontend_build_path, 'index.html')
+        
+    file_path = os.path.join(frontend_build_path, path)
+    if os.path.exists(file_path) and os.path.isfile(file_path):
+        return send_from_directory(frontend_build_path, path)
+    return send_from_directory(frontend_build_path, 'index.html')
+
+@app.route('/assets/<path:path>')
+def serve_assets(path):
+    assets_dir = os.path.join(frontend_build_path, 'assets')
+    return send_from_directory(assets_dir, path)
+
+@app.route('/api/upload', methods=['POST'])
+def upload_pdf():
+    if 'file' not in request.files:
+        return jsonify({"error": "No file uploaded"}), 400
+    file = request.files['file']
+    if not file.filename.lower().endswith(".pdf"):
+        return jsonify({"error": "Only PDF files are allowed"}), 400
+    try:
+        pdf_bytes = file.read()
+        extracted_params = extract_parameters_from_pdf(pdf_bytes)
+        return jsonify(extracted_params.model_dump())
+    except Exception as e:
+        return jsonify({"error": f"Failed to process PDF: {str(e)}"}), 500
+
+@app.route('/api/calculate', methods=['POST'])
+def calculate():
+    data = request.json
+    cell_params = data.get('cell_parameters')
+    series_cells = int(data.get('series_cells', 0))
+    parallel_cells = int(data.get('parallel_cells', 0))
+    if series_cells <= 0 or parallel_cells <= 0:
+        return jsonify({"error": "Series and Parallel cells must be positive integers"}), 400
+    try:
+        from schemas import CellParameters
+        cell_obj = CellParameters(**cell_params)
+        response_data = calculate_pack_data(cell_obj, series_cells, parallel_cells)
+        return jsonify({
+            "cell": response_data["cell"].model_dump(),
+            "pack": response_data["pack"].model_dump(),
+            "thresholds": response_data["thresholds"].model_dump(),
+            "adaptation": {
+                "base_chemistry": response_data["adaptation"]["base_chemistry"],
+                "detected_chemistry": response_data["adaptation"]["detected_chemistry"],
+                "compatibility_score": response_data["adaptation"]["compatibility_score"],
+                "recommendation_text": response_data["adaptation"]["recommendation_text"],
+                "expected_accuracy": response_data["adaptation"]["expected_accuracy"],
+                "reconfiguration_items": [item.model_dump() for item in response_data["adaptation"]["reconfiguration_items"]]
+            }
+        })
+    except Exception as e:
+        return jsonify({"error": f"Calculation failed: {str(e)}"}), 500
+
+@app.route('/api/save_active_profile', methods=['POST'])
+def save_active_profile():
+    payload = request.json
+    profile_path = os.path.join(MODEL_DIR, "active_profile.json")
+    try:
+        with open(profile_path, "w") as f:
+            json.dump(payload, f, indent=4)
+        global active_prof
+        if os.path.exists(profile_path):
+            with open(profile_path) as pf:
+                active_prof = json.load(pf)
+        return jsonify({"status": "success", "message": "Active profile saved and loaded"})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/train_model', methods=['POST'])
+def train_model():
+    if 'file' not in request.files:
+        return jsonify({"error": "No file uploaded"}), 400
+    file = request.files['file']
+    upload_mode = request.form.get("upload_mode", "replace")
+    try:
+        contents = file.read()
+        target_excel_path = os.path.join(MODEL_DIR, "master_dataset.xlsx")
+        backup_excel_path = os.path.join(MODEL_DIR, "master_dataset_backup.xlsx")
+        
+        if file.filename.lower().endswith(".csv"):
+            df_new = pd.read_csv(io.BytesIO(contents))
+        else:
+            df_new = pd.read_excel(io.BytesIO(contents))
+            
+        new_row_count = len(df_new)
+        if new_row_count < 100:
+            return jsonify({"error": "Uploaded dataset is too small for reliable ML learning. Please upload at least 100 rows."}), 400
+            
+        from mode_classifier import classify_operating_modes
+        recompute = (upload_mode == "replace") or not os.path.exists(target_excel_path)
+        threshold_path = os.path.join(MODEL_DIR, "mode_thresholds.json")
+        df_new = classify_operating_modes(df_new, recompute_thresholds=recompute, threshold_path=threshold_path)
+        mode_counts = df_new['Operating_Mode'].value_counts().to_dict()
+        
+        existing_row_count = 0
+        if upload_mode == "append" and os.path.exists(target_excel_path):
+            df_master = pd.read_excel(target_excel_path)
+            existing_row_count = len(df_master)
+            missing_cols = set(df_master.columns) - set(df_new.columns)
+            if missing_cols:
+                return jsonify({"error": f"Incompatible dataset. Missing columns: {missing_cols}"}), 400
+            df_new = df_new[df_master.columns]
+            df_combined = pd.concat([df_master, df_new], ignore_index=True)
+            telemetry_cols = ['voltage', 'current', 'temperature', 'soc'] + [f'cell_v{i}' for i in range(1, 9)]
+            cols_to_check = [c for c in telemetry_cols if c in df_combined.columns]
+            if cols_to_check:
+                df_combined.drop_duplicates(subset=cols_to_check, keep='last', inplace=True)
+        else:
+            df_combined = df_new
+            if os.path.exists(target_excel_path):
+                import shutil
+                shutil.copy2(target_excel_path, backup_excel_path)
+                
+        final_row_count = len(df_combined)
+        df_combined.to_excel(target_excel_path, index=False)
+        uploaded_baseline_path = os.path.join(MODEL_DIR, "uploaded_baseline.xlsx")
+        df_combined.to_excel(uploaded_baseline_path, index=False)
+                
+        gen_script = os.path.join(MODEL_DIR, "generate_synthetic_faults.py")
+        gen_result = subprocess.run([sys.executable, gen_script], cwd=MODEL_DIR, capture_output=True, text=True)
+        if gen_result.returncode != 0:
+            return jsonify({"error": f"Fault augmentation failed: {gen_result.stderr}"}), 500
+            
+        train_script = os.path.join(MODEL_DIR, "train_xgboost.py")
+        result = subprocess.run([sys.executable, train_script], cwd=MODEL_DIR, capture_output=True, text=True)
+        if result.returncode != 0:
+            return jsonify({"error": f"Training failed: {result.stderr}"}), 500
+            
+        status = "warning" if final_row_count <= 500 else "success"
+        message = "Dataset is small. Prediction is for demonstration only." if final_row_count <= 500 else "Dataset augmented and model trained successfully"
+        init_ml_model(MODEL_DIR)
+        
+        return jsonify({
+            "status": status, 
+            "message": message,
+            "stats": {
+                "existing_rows": existing_row_count,
+                "new_rows": new_row_count,
+                "final_rows": final_row_count,
+                "mode_counts": mode_counts
+            }
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
     # Start the background learning scheduler thread
