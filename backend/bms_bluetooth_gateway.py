@@ -103,7 +103,10 @@ def parse_jbd_basic(data):
 def parse_jbd_cells(data):
     cells = []
     try:
-        for i in range(8):
+        # data[3] is the length byte L. Number of cells is L // 2.
+        L = data[3]
+        num_cells = L // 2
+        for i in range(num_cells):
             idx = 4 + i * 2
             if idx + 2 <= len(data):
                 v = int.from_bytes(data[idx:idx + 2], "big") / 1000
@@ -118,7 +121,12 @@ def parse_jbd_cells(data):
 
     valid = [c for c in cells if c is not None]
     mean_v = round(sum(valid) / len(valid), 3) if valid else 3.2
-    return [c if c is not None else mean_v for c in cells]
+    
+    # Pad cells list up to 8 items to satisfy backend validation rules
+    padded_cells = [c if c is not None else mean_v for c in cells]
+    while len(padded_cells) < 8:
+        padded_cells.append(mean_v)
+    return padded_cells
 
 
 # ==============================================================================
@@ -420,8 +428,7 @@ class BMSGateway:
                 if self.response_basic and self.response_cells:
                     v, i, soc, t, ntc1, ntc2, ntc3, ntc4 = parse_jbd_basic(self.response_basic)
                     cells = parse_jbd_cells(self.response_cells)
-                    if cells and len(cells) > 0:
-                        v = round(sum(cells), 2)
+                    # Keep the true total pack voltage from basic info instead of summing padded cells
                     delta_v = round(max(cells) - min(cells), 4)
                     
                     # Print raw packet debug output
