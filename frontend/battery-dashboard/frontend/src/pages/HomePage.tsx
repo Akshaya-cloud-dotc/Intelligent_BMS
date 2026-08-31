@@ -1,150 +1,150 @@
 import { useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
-import { ArrowRight, Shield, Sliders, Users } from 'lucide-react';
+import { ArrowUpRight } from 'lucide-react';
 
 const HomePage = () => {
   const navigate = useNavigate();
 
-  const containerVariants = {
-    hidden: { opacity: 0 },
-    visible: { 
-      opacity: 1,
-      transition: { staggerChildren: 0.12 }
-    }
-  };
-
-  const itemVariants = {
-    hidden: { opacity: 0, y: 30 },
-    visible: { 
-      opacity: 1, 
-      y: 0, 
-      transition: { type: 'spring', stiffness: 100, damping: 18 } 
-    }
-  };
-
   return (
-    <div className="min-h-screen pb-20 bg-slate-50" style={{ fontFamily: 'Inter, system-ui, sans-serif' }}>
+    <div className="min-h-screen bg-[#0A0A0B] text-[#F3F4F6] selection:bg-[#D9C3B0] selection:text-[#0A0A0B] pb-24" style={{ fontFamily: 'Inter, system-ui, -apple-system, sans-serif' }}>
       
-      {/* Sleek Hero Header */}
-      <div className="relative w-full py-20 px-6 text-center bg-gradient-to-r from-slate-900 via-slate-800 to-indigo-950 text-white rounded-b-[40px] shadow-lg overflow-hidden">
-        {/* Glow decorative background blobs */}
-        <div className="absolute top-[-50%] left-[-20%] w-[600px] h-[600px] rounded-full bg-indigo-500/10 blur-[120px] pointer-events-none"></div>
-        <div className="absolute bottom-[-50%] right-[-20%] w-[600px] h-[600px] rounded-full bg-blue-500/10 blur-[120px] pointer-events-none"></div>
+      {/* Editorial Header */}
+      <header className="max-w-7xl mx-auto px-8 pt-8 pb-12 flex justify-between items-baseline border-b border-[#1F1F23]">
+        <div className="text-xs font-mono tracking-[0.25em] text-[#A1A1AA]">
+          AI-PBMS // SYSTEM
+        </div>
+        <div className="text-xs font-mono tracking-[0.2em] text-[#D9C3B0] uppercase">
+          PSG iTech · Staging
+        </div>
+      </header>
 
-        <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
-          className="relative max-w-4xl mx-auto z-10"
-        >
-          <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold tracking-tight mt-6 mb-4 text-white leading-tight">
-            Intelligent Battery Management System
-          </h1>
-          <p className="text-base md:text-lg text-slate-300 font-medium max-w-2xl mx-auto">
-            Edge-to-cloud AI platform for battery parameter extraction, multi-chemistry configurations, and time-series ML fault detection.
-          </p>
-        </motion.div>
-      </div>
-
-      <motion.div 
-        variants={containerVariants}
-        initial="hidden"
-        animate="visible"
-        className="max-w-6xl mx-auto px-6 -mt-10 space-y-10 relative z-20"
-      >
-        {/* Choice Cards (2-column layout) */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+      {/* Hero Section - Intentional Composition & Asymmetry */}
+      <section className="max-w-7xl mx-auto px-8 pt-20 pb-24">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
           
-          {/* Card 1: Fault Detection */}
-          <motion.div 
-            variants={itemVariants}
-            whileHover={{ y: -6, transition: { duration: 0.2 } }}
-            className="bg-white rounded-[24px] p-8 md:p-10 border border-slate-100 shadow-xl shadow-slate-200/50 relative overflow-hidden flex flex-col justify-between"
-          >
-            <div className="absolute top-6 right-6 text-indigo-500/5 pointer-events-none">
-              <Shield size={160} />
-            </div>
+          {/* Main Title - Columns 1 to 8 */}
+          <div className="lg:col-span-8">
+            <span className="text-[10px] font-mono tracking-[0.3em] text-[#D9C3B0] uppercase block mb-4">
+              [ 01 / INTRODUCTION ]
+            </span>
+            <h1 className="text-4xl md:text-6xl lg:text-7xl font-extralight tracking-tight leading-[1.05] text-[#F3F4F6] max-w-3xl">
+              Intelligent battery management and predictive diagnostics.
+            </h1>
+          </div>
+
+          {/* Subtitle / Paragraph - Columns 9 to 12 (Shifted down slightly on desktop for composition) */}
+          <div className="lg:col-span-4 lg:pt-16">
+            <p className="text-[#9CA3AF] text-sm md:text-base font-light leading-relaxed max-w-sm">
+              A professional-grade diagnostic platform designed for mission-critical electrical systems. Monitors live parameters, evaluates time-series battery health, and automates multi-chemistry spec configuration.
+            </p>
+          </div>
+
+        </div>
+      </section>
+
+      {/* Dual Interface Options - Asymmetric Card Grid */}
+      <section className="max-w-7xl mx-auto px-8 pb-28">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
+          
+          {/* Card 1: Telemetry Dashboard (55% Width on Desktop) */}
+          <div className="lg:col-span-7 bg-[#121214] border border-[#1F1F23] p-10 flex flex-col justify-between min-h-[420px] transition-colors duration-300 hover:border-[#3F3F46] group">
             <div>
-              <div className="flex items-center gap-3 mb-6">
-                <div className="p-3.5 rounded-2xl bg-indigo-50 text-indigo-600">
-                  <Shield className="w-7 h-7" />
-                </div>
-                <span className="text-[12px] font-bold text-indigo-600 uppercase tracking-widest">
-                  Live Stream (Layer 1 & 2)
-                </span>
-              </div>
-              <h2 className="text-[24px] md:text-[28px] font-extrabold text-slate-800 mb-4">
-                Real-Time Telemetry & Fault Detection
+              <span className="text-[10px] font-mono tracking-[0.3em] text-[#D9C3B0] uppercase block mb-8">
+                INTERFACE _ 01
+              </span>
+              <h2 className="text-2xl md:text-3xl font-light tracking-tight text-[#F3F4F6] mb-4">
+                Real-Time Diagnostics & Anomaly Stream
               </h2>
-              <p className="text-slate-500 text-sm md:text-base leading-relaxed mb-8">
-                Stream live data from your battery pack, monitor cell voltages, compute power/energy, and run predictive machine learning models to identify cell imbalances or weak cell anomalies.
+              <p className="text-[#9CA3AF] text-sm leading-relaxed max-w-md font-light">
+                Continuous cell-by-cell voltage mapping, live temperature drift analysis, and predictive categorical fault detection. Integrates directly with hardware BLE gateways.
               </p>
             </div>
             <button 
               onClick={() => {
                 window.location.href = window.location.origin + '/live-monitor';
               }}
-              className="w-full md:w-fit px-8 py-3.5 rounded-full font-bold text-white bg-indigo-600 hover:bg-indigo-700 transition-all duration-200 flex items-center justify-center gap-2 shadow-lg shadow-indigo-600/20"
+              className="mt-12 flex items-center gap-2 text-xs font-mono tracking-wider uppercase text-[#D9C3B0] border-b border-[#D9C3B0]/30 pb-1 w-fit transition-all duration-300 hover:border-[#D9C3B0] group-hover:text-white"
             >
-              Open Live Monitor <ArrowRight className="w-4 h-4" />
+              Enter Live Monitor <ArrowUpRight className="w-3.5 h-3.5" />
             </button>
-          </motion.div>
+          </div>
 
-          {/* Card 2: Multi-Chemistry Configurator */}
-          <motion.div 
-            variants={itemVariants}
-            whileHover={{ y: -6, transition: { duration: 0.2 } }}
-            className="bg-white rounded-[24px] p-8 md:p-10 border border-slate-100 shadow-xl shadow-slate-200/50 relative overflow-hidden flex flex-col justify-between"
-          >
-            <div className="absolute top-6 right-6 text-slate-800/5 pointer-events-none">
-              <Sliders size={160} />
-            </div>
+          {/* Card 2: Configuration & ML Training (45% Width on Desktop) */}
+          <div className="lg:col-span-5 bg-[#121214] border border-[#1F1F23] p-10 flex flex-col justify-between min-h-[420px] transition-colors duration-300 hover:border-[#3F3F46] group">
             <div>
-              <div className="flex items-center gap-3 mb-6">
-                <div className="p-3.5 rounded-2xl bg-slate-50 text-slate-700">
-                  <Sliders className="w-7 h-7" />
-                </div>
-                <span className="text-[12px] font-bold text-slate-600 uppercase tracking-widest">
-                  Configuration Engine
-                </span>
-              </div>
-              <h2 className="text-[24px] md:text-[28px] font-extrabold text-slate-800 mb-4">
-                Multi-Chemistry Configurator
+              <span className="text-[10px] font-mono tracking-[0.3em] text-[#D9C3B0] uppercase block mb-8">
+                INTERFACE _ 02
+              </span>
+              <h2 className="text-2xl md:text-3xl font-light tracking-tight text-[#F3F4F6] mb-4">
+                Multi-Chemistry Spec Configurator
               </h2>
-              <p className="text-slate-500 text-sm md:text-base leading-relaxed mb-8">
-                Upload cell specification PDFs to extract internal chemistry profiles, configure pack sizes, and retrain custom XGBoost ML classification models with your local CSV data.
+              <p className="text-[#9CA3AF] text-sm leading-relaxed max-w-sm font-light">
+                Extract nominal cell parameters from datasheets, calibrate fault thresholds, and retrain custom XGBoost ML classifiers using local dataset logging.
               </p>
             </div>
             <button 
               onClick={() => navigate('/configurator')}
-              className="w-full md:w-fit px-8 py-3.5 rounded-full font-bold text-white bg-slate-800 hover:bg-slate-900 transition-all duration-200 flex items-center justify-center gap-2 shadow-lg shadow-slate-800/20"
+              className="mt-12 flex items-center gap-2 text-xs font-mono tracking-wider uppercase text-[#D9C3B0] border-b border-[#D9C3B0]/30 pb-1 w-fit transition-all duration-300 hover:border-[#D9C3B0] group-hover:text-white"
             >
-              Open Configurator <ArrowRight className="w-4 h-4" />
+              Open Configurator <ArrowUpRight className="w-3.5 h-3.5" />
             </button>
-          </motion.div>
-        </div>
+          </div>
 
-        {/* Team Information Footer Card */}
-        <motion.div 
-          variants={itemVariants}
-          className="bg-white rounded-[24px] p-8 md:p-10 border border-slate-100 shadow-md flex flex-col md:flex-row items-center justify-between gap-6"
-        >
-          <div className="flex items-center gap-4">
-            <div className="p-3 rounded-2xl bg-slate-50 text-slate-600 hidden sm:block">
-              <Users className="w-6 h-6" />
+        </div>
+      </section>
+
+      {/* Technical Specifications Grid - Architectural Structure */}
+      <footer className="max-w-7xl mx-auto px-8 border-t border-[#1F1F23] pt-12">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
+          <div>
+            <span className="text-[9px] font-mono tracking-widest text-[#71717A] uppercase block mb-2">
+              DEVELOPED BY
+            </span>
+            <div className="text-sm font-light text-[#F3F4F6]">
+              TEAM ANS_4X
             </div>
-            <div className="text-center md:text-left">
-              <h4 className="text-[12px] font-bold text-slate-400 uppercase tracking-widest mb-1">Developed By</h4>
-              <h3 className="text-2xl md:text-3xl font-black text-slate-800">TEAM ANS_4X</h3>
-              <p className="text-sm font-medium text-slate-500 mt-1">PSG Institute of Technology and Applied Research</p>
+            <div className="text-xs text-[#9CA3AF] mt-0.5">
+              PSG Institute of Technology
             </div>
           </div>
-          <span className="px-5 py-2 rounded-full text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-100 uppercase tracking-wider">
-            PSG iTech
-          </span>
-        </motion.div>
+          
+          <div>
+            <span className="text-[9px] font-mono tracking-widest text-[#71717A] uppercase block mb-2">
+              ACQUISITION RATE
+            </span>
+            <div className="text-sm font-light text-[#F3F4F6]">
+              1.0 Hz (Continuous)
+            </div>
+            <div className="text-xs text-[#9CA3AF] mt-0.5">
+              Low-latency BLE gateway
+            </div>
+          </div>
 
-      </motion.div>
+          <div>
+            <span className="text-[9px] font-mono tracking-widest text-[#71717A] uppercase block mb-2">
+              CLASSIFICATION CORE
+            </span>
+            <div className="text-sm font-light text-[#F3F4F6]">
+              XGBoost Anomaly Model
+            </div>
+            <div className="text-xs text-[#9CA3AF] mt-0.5">
+              92.8% Cross-Validation Score
+            </div>
+          </div>
+
+          <div>
+            <span className="text-[9px] font-mono tracking-widest text-[#71717A] uppercase block mb-2">
+              SYSTEM BUILD
+            </span>
+            <div className="text-sm font-light text-[#F3F4F6]">
+              v4.2-Staging
+            </div>
+            <div className="text-xs text-[#9CA3AF] mt-0.5">
+              Railway Cloud Deploy
+            </div>
+          </div>
+        </div>
+      </footer>
+
     </div>
   );
 };
