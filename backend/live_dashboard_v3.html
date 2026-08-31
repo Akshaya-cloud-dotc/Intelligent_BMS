@@ -1384,7 +1384,7 @@ function updatePredictionDetailsPanel(livePrediction) {
 let latestPrediction = null;
 let latestStats = null;
 
-function render(latest, history, prediction, stats, livePrediction){
+function render(latest, history, prediction, stats, livePrediction, rawRow){
   if(!latest) return;
   latestPrediction = prediction || null;
   latestStats = stats || null;
@@ -1483,10 +1483,12 @@ function render(latest, history, prediction, stats, livePrediction){
   document.getElementById('dvdtBar').style.width=Math.min(100,Math.abs(f.dvdt)/10*100)+'%';
   document.getElementById('dvdtBar').style.background=f.dvdt>3?'#A8853D':'#8EC5E8';
 
-  // ── Cell Voltages (only if live_row actually contains cell_v1..8) ──
-  if(hasCellData){
+  // ── Cell Voltages (only if rawRow/live_row actually contains cell_v1..8) ──
+  const drawSource = rawRow || latest;
+  const hasCellDataForGrid = CELLS.some(c => drawSource[c] !== undefined && drawSource[c] !== null);
+  if(hasCellDataForGrid){
     document.getElementById('cellGrid').innerHTML=CELLS.map(c=>{
-      const v=num(latest[c]);let bg,bd,tx;
+      const v=num(drawSource[c]);let bg,bd,tx;
       if(v>OV){bg='#FBE0E0';bd='#E89595';tx='#B05656';}
       else if(v>WN){bg='#FBF0D6';bd='#E8C173';tx='#A8853D';}
       else if(v>4.0){bg='#E0F2E5';bd='#8EC79F';tx='#5A9670';}
@@ -1956,7 +1958,7 @@ async function poll(){
         if(clientHistory.length > CLIENT_HISTORY_MAX) clientHistory.shift();
         lastSeenRowMarker = marker;
       }
-      render(activeRow, clientHistory, activePred, stats, d.live_prediction);
+      render(activeRow, clientHistory, activePred, stats, d.live_prediction, d.raw_row);
       document.getElementById('hdrSub').textContent =
         `Streaming live · ${stats.total_rows_processed||0} rows processed this session`;
     } else {
