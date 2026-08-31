@@ -85,10 +85,10 @@ def is_valid_telemetry(row):
             if not (-40.0 <= temperature <= 120.0):
                 return False
             
-        # Cell voltages validation
+        # Cell voltages validation (allowing 0.0V for empty/disconnected channels)
         for i in range(1, 9):
             cell_v = float(row.get(f"cell_v{i}", 3.2))
-            if not (2.0 <= cell_v <= 4.6):
+            if not (0.0 <= cell_v <= 5.0):
                 return False
         return True
     except Exception:
@@ -1941,7 +1941,7 @@ def add_telemetry():
                 cell_ok = True
                 for idx in range(1, 9):
                     cell_val = float(new_row.get(f"cell_v{idx}", 3.2))
-                    if not (2.0 <= cell_val <= 4.6):
+                    if not (0.0 <= cell_val <= 5.0):
                         cell_ok = False
                 bms_debug_state["cell_voltage_valid"] = cell_ok
                 

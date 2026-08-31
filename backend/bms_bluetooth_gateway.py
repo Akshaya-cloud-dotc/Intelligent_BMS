@@ -110,26 +110,18 @@ def parse_jbd_cells(data):
             idx = 4 + i * 2
             if idx + 2 <= len(data):
                 v = int.from_bytes(data[idx:idx + 2], "big") / 1000
-                if 0.5 <= v <= 5.0:
-                    cells.append(round(v, 3))
-                else:
-                    cells.append(None)
+                cells.append(round(v, 3))
             else:
                 cells.append(None)
     except Exception:
         cells = [3.2] * 8
 
-    # Extract only the actual connected cell channels (voltage >= 0.5V)
-    # This prevents the empty channels (which report 0.001V) from shifting the cell numbers
-    valid_cells = [c for c in cells if c is not None and c >= 0.5]
+    # Extract non-zero cell voltages to calculate average padding
+    valid_non_zero = [c for c in cells if c is not None and c >= 0.5]
+    mean_v = round(sum(valid_non_zero) / len(valid_non_zero), 3) if valid_non_zero else 3.2
     
-    # Calculate the average of the connected cells
-    mean_v = round(sum(valid_cells) / len(valid_cells), 3) if valid_cells else 3.2
-    
-    # Round the valid cell voltages
-    cleaned_cells = [round(c, 3) for c in valid_cells]
-    
-    # Pad at the end of the list up to 8 cells for backend validation
+    # Replace None values with average and ensure it is length 8
+    cleaned_cells = [c if c is not None else mean_v for c in cells]
     while len(cleaned_cells) < 8:
         cleaned_cells.append(mean_v)
         
@@ -467,7 +459,7 @@ class BMSGateway:
                     current_valid = (-120.0 <= i <= 120.0)
                     voltage_valid = (15.0 <= v <= 40.0)
                     temperature_valid = (t is None or -40.0 <= t <= 120.0)
-                    cell_voltage_valid = all(0.5 <= cv <= 5.0 for cv in cells)
+                    cell_voltage_valid = all(0.0 <= cv <= 5.0 for cv in cells)
                     
                     self.latest_data = {
                         "voltage": v,
