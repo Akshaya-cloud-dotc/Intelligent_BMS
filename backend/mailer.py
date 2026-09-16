@@ -116,27 +116,37 @@ def _send(subject, rows, heading, recipients):
         return False
 
 
-def send_alert(alert_id):
-    rows = [a for a in alerts.pending() if a["id"] == alert_id]
-    if not rows:
-        return False
-    a = rows[0]
-    sev = a["severity"]
-    to = alerts.active_recipients(sev)
-    if not to:
-        default_to = os.getenv("ALERT_TO", os.getenv("SMTP_USER", "akshayavg1@gmail.com")).strip()
-        if default_to:
-            to = [default_to]
-        else:
-            alerts.mark_emailed([a["id"]])
+import threading
+
+def _send_alert_async(alert_id):
+    try:
+        rows = [a for a in alerts.pending() if a["id"] == alert_id]
+        if not rows:
             return False
-    heading = {"CRITICAL": "Critical fault detected",
-               "WARNING":  "Warning raised",
-               "INFO":     "System event"}.get(sev, "Alert")
-    ok = _send(f'[{sev}] {a["alert_type"]} — AI-PBMS', rows, heading, to)
-    if ok:
-        alerts.mark_emailed([a["id"]])
-    return ok
+        a = rows[0]
+        sev = a["severity"]
+        to = alerts.active_recipients(sev)
+        if not to:
+            default_to = os.getenv("ALERT_TO", os.getenv("SMTP_USER", "akshayavg1@gmail.com")).strip()
+            if default_to:
+                to = [default_to]
+            else:
+                alerts.mark_emailed([a["id"]])
+                return False
+        heading = {"CRITICAL": "Critical fault detected",
+                   "WARNING":  "Warning raised",
+                   "INFO":     "System event"}.get(sev, "Alert")
+        ok = _send(f'[{sev}] {a["alert_type"]} — AI-PBMS', rows, heading, to)
+        if ok:
+            alerts.mark_emailed([a["id"]])
+        return ok
+    except Exception as e:
+        print(f"[MAILER] Background alert send failed: {e}")
+        return False
+
+def send_alert(alert_id):
+    threading.Thread(target=_send_alert_async, args=(alert_id,), daemon=True).start()
+    return True
 
 
 def send_critical(alert_id):
