@@ -1468,18 +1468,38 @@ function render(latest, history, prediction, stats, livePrediction, rawRow){
   if (activeFault === 'Normal Operation') activeFault = 'Normal';
   if (activeFault) activeFault = activeFault.replace(' Risk', '').trim();
 
-  // Render status banner in consistent style as requested
+  // Render status banner and top badge in consistent style as requested
+  const topBadge = document.getElementById("alertBadge");
+  const topDot = document.getElementById("alertDot");
+  const topText = document.getElementById("alertBadgeText");
+
   if (activeFault && activeFault !== 'Normal') {
     const isCritical = ['Overvoltage', 'Undervoltage', 'Overtemperature', 'Overcurrent'].includes(activeFault);
     banner.style.background = isCritical ? '#FBE0E0' : '#FBF0D6';
     document.getElementById('statusDot').style.background = isCritical ? '#E08A8A' : '#E8C173';
     st.textContent = `${activeFault} Detected — Review Condition`;
     st.style.color = isCritical ? '#B05656' : '#A8853D';
+    
+    if (topBadge && topDot && topText) {
+      topBadge.style.background = isCritical ? "#FBE0E0" : "#FBF0D6";
+      topBadge.style.color = isCritical ? "#B05656" : "#A8853D";
+      topDot.style.background = isCritical ? "#E08A8A" : "#E8C173";
+      topDot.style.animation = isCritical ? "pulse 1.0s infinite" : "pulse 1.6s infinite";
+      topText.textContent = isCritical ? "System: CRITICAL" : "System: WARNING";
+    }
   } else if (activeFault === 'Normal') {
     banner.style.background = '#E0F2E5';
     document.getElementById('statusDot').style.background = '#8EC79F';
     st.textContent = 'System Normal';
     st.style.color = '#5A9670';
+
+    if (topBadge && topDot && topText) {
+      topBadge.style.background = "#E0F2E5";
+      topBadge.style.color = "#5A9670";
+      topDot.style.background = "#8EC79F";
+      topDot.style.animation = "none";
+      topText.textContent = "System: NORMAL";
+    }
   } else {
     banner.style.background = '#EAF1FB';
     document.getElementById('statusDot').style.background = '#8EC5E8';
