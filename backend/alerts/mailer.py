@@ -23,6 +23,7 @@ import time
 import json
 import ssl
 import smtplib
+import socket
 import queue
 import threading
 import io
@@ -98,7 +99,7 @@ def _build_csv_attachment(rows: List[Dict[str, Any]]) -> str:
 
 def _send_smtp_message(to_addr: str, subject: str, body_text: str, body_html: str, 
                        csv_data: Optional[str] = None) -> bool:
-    """Delivers email via smtplib with TLS/SSL."""
+    """Delivers email via smtplib with TLS/SSL, forcing IPv4 to prevent Linux/Railway Errno 101."""
     if not SMTP_USER or not SMTP_PASS:
         raise ValueError("SMTP_USER or SMTP_PASS not configured in environment variables.")
 
@@ -120,15 +121,46 @@ def _send_smtp_message(to_addr: str, subject: str, body_text: str, body_html: st
     context = ssl.create_default_context()
     context.check_hostname = False
     context.verify_mode = ssl.CERT_NONE
-    if SMTP_PORT == 465:
-        with smtplib.SMTP_SSL(SMTP_HOST, SMTP_PORT, context=context, timeout=12.0) as server:
-            server.login(SMTP_USER, SMTP_PASS)
-            server.send_message(msg)
-    else:
-        with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=12.0) as server:
-            server.starttls(context=context)
-            server.login(SMTP_USER, SMTP_PASS)
-            server.send_message(msg)
+
+    orig_getaddrinfo = socket.getaddrinfo
+    def _ipv4_getaddrinfo(host, port, family=0, type=0, proto=0, flags=0):
+        try:
+            res = orig_getaddrinfo(host, port, socket.AF_INET, type, proto, flags)
+            if res:
+                return res
+        except Exception:
+            pass
+        return orig_getaddrinfo(host, port, family, type, proto, flags)
+
+    socket.getaddrinfo = _ipv4_getaddrinfo
+    try:
+        ports_to_try = [SMTP_PORT]
+        fallback_port = 587 if SMTP_PORT == 465 else 465
+        if fallback_port not in ports_to_try:
+            ports_to_try.append(fallback_port)
+
+        last_err = None
+        for port in ports_to_try:
+            try:
+                if port == 465:
+                    with smtplib.SMTP_SSL(SMTP_HOST, port, context=context, timeout=12.0) as server:
+                        server.login(SMTP_USER, SMTP_PASS)
+                        server.send_message(msg)
+                    return True
+                else:
+                    with smtplib.SMTP(SMTP_HOST, port, timeout=12.0) as server:
+                        server.starttls(context=context)
+                        server.login(SMTP_USER, SMTP_PASS)
+                        server.send_message(msg)
+                    return True
+            except Exception as e:
+                last_err = e
+                print(f"[MAILER WARN] Port {port} failed: {e}. Trying fallback...")
+
+        if last_err:
+            raise last_err
+    finally:
+        socket.getaddrinfo = orig_getaddrinfo
 
     return True
 
