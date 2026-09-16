@@ -506,29 +506,35 @@ def get_physics_informed_prediction(row, pred, cfg, chem_type):
                 "ood_score": 0.0
             }
         elif f_low in ("cell imbalance", "cell imbalance risk"):
+            is_crit = (f_low == "cell imbalance") or (delta_v >= 0.15)
+            cond = "Cell Imbalance" if is_crit else "Cell Imbalance Risk"
+            sev = "CRITICAL" if is_crit else "WARNING"
             return {
-                "condition": "Cell Imbalance Risk",
-                "severity": "WARNING",
+                "condition": cond,
+                "severity": sev,
                 "confidence": "98.50%",
                 "triggering_parameter": "Cell Spread (Delta V)",
                 "measured_value": f"{delta_v:.3f} V",
                 "safe_threshold": f"{cfg['imbalance_warn_limit']:.3f} V",
-                "reason": "WARNING: Cell voltage spread exceeds balancer warning safety limit.",
+                "reason": f"{sev}: Cell voltage spread exceeds balancer {'critical' if is_crit else 'warning'} safety limit.",
                 "chemistry": chem_type,
                 "is_fallback": False,
                 "is_ood": False,
                 "ood_status": "In-Distribution (Safe)",
                 "ood_score": 0.0
             }
-        elif f_low == "weak cell":
+        elif f_low in ("weak cell", "weak cell risk"):
+            is_crit = (f_low == "weak cell") or (delta_v >= 0.25)
+            cond = "Weak Cell" if is_crit else "Weak Cell Risk"
+            sev = "CRITICAL" if is_crit else "WARNING"
             return {
-                "condition": "Weak Cell",
-                "severity": "WARNING",
+                "condition": cond,
+                "severity": sev,
                 "confidence": "95.00%",
                 "triggering_parameter": "Min Cell Voltage",
                 "measured_value": f"{min_cell:.3f} V",
                 "safe_threshold": f"{cfg['cell_min_voltage']:.3f} V",
-                "reason": "WARNING: Weak cell detected with accelerated voltage sag under load.",
+                "reason": f"{sev}: Weak cell detected with accelerated voltage sag under load.",
                 "chemistry": chem_type,
                 "is_fallback": False,
                 "is_ood": False,
@@ -536,14 +542,17 @@ def get_physics_informed_prediction(row, pred, cfg, chem_type):
                 "ood_score": 0.0
             }
         elif f_low in ("overvoltage", "overvoltage risk"):
+            is_crit = (f_low == "overvoltage") or (max_cell >= 4.25) or (voltage >= 33.6)
+            cond = "Overvoltage" if is_crit else "Overvoltage Risk"
+            sev = "CRITICAL" if is_crit else "WARNING"
             return {
-                "condition": "Overvoltage Risk",
-                "severity": "CRITICAL",
+                "condition": cond,
+                "severity": sev,
                 "confidence": "99.00%",
                 "triggering_parameter": "Max Cell Voltage",
                 "measured_value": f"{max_cell:.3f} V",
                 "safe_threshold": f"{cfg['cell_max_voltage']:.3f} V",
-                "reason": "CRITICAL: Cell voltage exceeds safety maximum limit.",
+                "reason": f"{sev}: Cell voltage {'exceeds safety maximum limit' if is_crit else 'approaching maximum threshold'}.",
                 "chemistry": chem_type,
                 "is_fallback": False,
                 "is_ood": False,
@@ -551,14 +560,17 @@ def get_physics_informed_prediction(row, pred, cfg, chem_type):
                 "ood_score": 0.0
             }
         elif f_low in ("undervoltage", "undervoltage risk"):
+            is_crit = (f_low == "undervoltage") or (min_cell <= 2.80) or (voltage <= 22.0)
+            cond = "Undervoltage" if is_crit else "Undervoltage Risk"
+            sev = "CRITICAL" if is_crit else "WARNING"
             return {
-                "condition": "Undervoltage Risk",
-                "severity": "CRITICAL",
+                "condition": cond,
+                "severity": sev,
                 "confidence": "99.00%",
                 "triggering_parameter": "Min Cell Voltage",
                 "measured_value": f"{min_cell:.3f} V",
                 "safe_threshold": f"{cfg['cell_min_voltage']:.3f} V",
-                "reason": "CRITICAL: Cell voltage is below safety minimum limit.",
+                "reason": f"{sev}: Cell voltage {'is below safety minimum limit' if is_crit else 'approaching minimum threshold'}.",
                 "chemistry": chem_type,
                 "is_fallback": False,
                 "is_ood": False,
@@ -566,14 +578,36 @@ def get_physics_informed_prediction(row, pred, cfg, chem_type):
                 "ood_score": 0.0
             }
         elif f_low in ("overtemperature", "overtemperature risk"):
+            curr_temp = float(temperature) if temperature is not None else 50.0
+            is_crit = (f_low == "overtemperature") or (curr_temp >= 60.0)
+            cond = "Overtemperature" if is_crit else "Overtemperature Risk"
+            sev = "CRITICAL" if is_crit else "WARNING"
             return {
-                "condition": "Overtemperature Risk",
-                "severity": "CRITICAL",
+                "condition": cond,
+                "severity": sev,
                 "confidence": "99.00%",
                 "triggering_parameter": "Temperature",
-                "measured_value": f"{float(temperature):.1f} °C" if temperature is not None else "50.0 °C",
+                "measured_value": f"{curr_temp:.1f} °C",
                 "safe_threshold": f"{cfg['temp_critical_limit']:.1f} °C",
-                "reason": "CRITICAL: Battery temperature exceeded safety operating limit.",
+                "reason": f"{sev}: Battery temperature {'exceeded absolute safety operating limit' if is_crit else 'approaching thermal warning limit'}.",
+                "chemistry": chem_type,
+                "is_fallback": False,
+                "is_ood": False,
+                "ood_status": "In-Distribution (Safe)",
+                "ood_score": 0.0
+            }
+        elif f_low in ("overcurrent", "overcurrent risk"):
+            is_crit = (f_low == "overcurrent") or (abs(current) >= 20.0)
+            cond = "Overcurrent" if is_crit else "Overcurrent Risk"
+            sev = "CRITICAL" if is_crit else "WARNING"
+            return {
+                "condition": cond,
+                "severity": sev,
+                "confidence": "99.00%",
+                "triggering_parameter": "Current",
+                "measured_value": f"{current:.2f} A",
+                "safe_threshold": f"{cfg['current_critical_limit']:.1f} A",
+                "reason": f"{sev}: Pack continuous current {'exceeds absolute continuous current limit' if is_crit else 'approaching safety continuous limit'}.",
                 "chemistry": chem_type,
                 "is_fallback": False,
                 "is_ood": False,

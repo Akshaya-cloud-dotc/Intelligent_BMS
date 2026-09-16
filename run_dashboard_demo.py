@@ -127,6 +127,11 @@ def prepare_replay_rows(choice: int) -> tuple[str, list[dict]]:
         6: ("Overtemperature", 5)
     }
 
+    normal_count = 0
+    risk_count = 0
+    crit_count = 0
+    fault_count = 0
+
     if choice == 1:
         fault_name = "Normal"
         normal_block = extract_contiguous_block(df, 0)
@@ -136,7 +141,6 @@ def prepare_replay_rows(choice: int) -> tuple[str, list[dict]]:
 
     elif choice in range(2, 7):
         fault_name, fault_id = fault_map[choice]
-        normal_block = extract_contiguous_block(df, 0)
         fault_block = extract_contiguous_block(df, fault_id)
 
         if len(fault_block) < 10:
@@ -145,33 +149,33 @@ def prepare_replay_rows(choice: int) -> tuple[str, list[dict]]:
             if ans != 'y':
                 return fault_name, []
 
-        prefix_rows = normal_block.iloc[:REPLAY_NORMAL_PREFIX]
-        fault_limit = REPLAY_MAX_ROWS - len(prefix_rows)
-        chosen_fault_rows = fault_block.iloc[:fault_limit]
-
-        rows_df = pd.concat([prefix_rows, chosen_fault_rows], ignore_index=True)
-        normal_count = len(prefix_rows)
-        fault_count = len(chosen_fault_rows)
+        rows_df = fault_block.iloc[:REPLAY_MAX_ROWS]
+        normal_count = int((rows_df["label"] == "Normal").sum())
+        risk_count = int(rows_df["label"].str.contains("Risk").sum())
+        crit_count = len(rows_df) - normal_count - risk_count
+        fault_count = risk_count + crit_count
 
     elif choice == 7:
         fault_name = "Mixed Cycle"
-        # Assemble multi-stage cycle: Normal -> Imbalance -> Weak Cell -> Overvoltage -> Undervoltage -> Recovery
+        # Assemble multi-stage cycle: Normal -> Imbalance -> Weak Cell -> Overvoltage -> Undervoltage -> Overtemp -> Recovery
         stages = [
-            (0, 30),  # 30 normal
-            (1, 50),  # 50 imbalance
-            (2, 50),  # 50 weak cell
-            (3, 40),  # 40 overvoltage
-            (4, 40),  # 40 undervoltage
-            (5, 40),  # 40 overtemp
-            (0, 50)   # 50 normal recovery
+            (0, 0, 30),     # 30 normal baseline
+            (1, 25, 105),   # Imbalance (normal -> risk -> crit)
+            (2, 25, 105),   # Weak cell (normal -> risk -> crit)
+            (3, 25, 105),   # Overvoltage (normal -> risk -> crit)
+            (4, 25, 105),   # Undervoltage (normal -> risk -> crit)
+            (5, 25, 105),   # Overtemp (normal -> risk -> crit)
+            (0, 0, 40)      # Normal recovery
         ]
         collected = []
-        for fid, count in stages:
+        for fid, start_idx, count in stages:
             block = extract_contiguous_block(df, fid)
-            collected.append(block.iloc[:count])
-        rows_df = pd.concat(collected, ignore_index=True).iloc[:REPLAY_MAX_ROWS]
-        normal_count = 30
-        fault_count = len(rows_df) - 30
+            collected.append(block.iloc[start_idx : start_idx + count])
+        rows_df = pd.concat(collected, ignore_index=True)
+        normal_count = int((rows_df["label"] == "Normal").sum())
+        risk_count = int(rows_df["label"].str.contains("Risk").sum())
+        crit_count = len(rows_df) - normal_count - risk_count
+        fault_count = risk_count + crit_count
     else:
         return "Unknown", []
 
@@ -181,7 +185,10 @@ def prepare_replay_rows(choice: int) -> tuple[str, list[dict]]:
     secs = int(duration_sec % 60)
 
     print("\n" + "-" * 65)
-    print(f"{fault_name}: {normal_count} normal + {fault_count} fault rows @ {REPLAY_RATE_HZ:g}/s (~{mins}m{secs:02d}s)")
+    if risk_count > 0:
+        print(f"{fault_name}: {normal_count} normal + {risk_count} risk + {crit_count} critical rows @ {REPLAY_RATE_HZ:g}/s (~{mins}m{secs:02d}s)")
+    else:
+        print(f"{fault_name}: {normal_count} normal + {fault_count} fault rows @ {REPLAY_RATE_HZ:g}/s (~{mins}m{secs:02d}s)")
     print("-" * 65)
 
     # Convert DataFrame rows to telemetry payload dictionaries
