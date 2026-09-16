@@ -295,10 +295,14 @@ def active_recipients(severity=None):
         rows = c.execute(
             "SELECT email, min_severity FROM recipients WHERE active=1"
         ).fetchall()
-    if severity is None:
+    if rows:
+        if severity is None:
+            return [r["email"] for r in rows]
+        # Include any recipient configured for WARNING or CRITICAL
         return [r["email"] for r in rows]
-    return [r["email"] for r in rows
-            if r["min_severity"] == severity.upper()]
+    # Fallback to configured admin email if database table is empty
+    default_email = os.getenv("ALERT_TO", os.getenv("SMTP_USER", "akshayavg1@gmail.com")).strip()
+    return [default_email] if default_email else []
 
 
 def add_recipient(email, name=None, min_severity="CRITICAL"):

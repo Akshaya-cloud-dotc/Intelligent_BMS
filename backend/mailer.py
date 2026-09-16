@@ -124,8 +124,12 @@ def send_alert(alert_id):
     sev = a["severity"]
     to = alerts.active_recipients(sev)
     if not to:
-        alerts.mark_emailed([a["id"]])
-        return False
+        default_to = os.getenv("ALERT_TO", os.getenv("SMTP_USER", "akshayavg1@gmail.com")).strip()
+        if default_to:
+            to = [default_to]
+        else:
+            alerts.mark_emailed([a["id"]])
+            return False
     heading = {"CRITICAL": "Critical fault detected",
                "WARNING":  "Warning raised",
                "INFO":     "System event"}.get(sev, "Alert")

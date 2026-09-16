@@ -47,8 +47,8 @@ SMTP_PASS = os.getenv("SMTP_PASS", "").strip()
 ALERT_TO  = os.getenv("ALERT_TO", SMTP_USER).strip()
 SENDER    = os.getenv("SMTP_FROM", SMTP_USER).strip()
 
-ALERT_COOLDOWN_SEC = float(os.getenv("ALERT_COOLDOWN_SEC", "300"))
-DEMO_ALERTS = os.getenv("DEMO_ALERTS", "false").strip().lower() == "true"
+ALERT_COOLDOWN_SEC = float(os.getenv("ALERT_COOLDOWN_SEC", "20"))
+DEMO_ALERTS = os.getenv("DEMO_ALERTS", "true").strip().lower() == "true"
 
 IST = timezone(timedelta(hours=5, minutes=30))
 
@@ -232,21 +232,23 @@ def evaluate_and_enqueue_alert(row: Dict[str, Any],
     """
     # 1. Determine active fault class and numeric confidence
     fault_class = "Normal"
+    severity = "WARNING"
     confidence = 1.0
     conf_str = "100.0%"
-    trigger_reason = "Normal physical limits"
+    trigger_reason = "Safety threshold exceeded"
 
     # Check live_prediction (physics-informed override has highest priority)
-    if live_prediction and live_prediction.get("override_condition"):
-        cond = live_prediction["override_condition"]
-        if cond not in ["Normal", "Normal Operation", "—", None]:
+    if live_prediction:
+        cond = live_prediction.get("condition") or live_prediction.get("override_condition")
+        if cond and cond not in ["Normal", "Normal Operation", "—", None]:
             fault_class = cond
-            trigger_reason = live_prediction.get("override_reason", "Safety limit exceeded")
-            conf_str = live_prediction.get("confidence_score", "95.00%")
+            severity = live_prediction.get("severity", "WARNING")
+            trigger_reason = live_prediction.get("reason") or live_prediction.get("override_reason", "Safety limit exceeded")
+            conf_str = live_prediction.get("confidence", "98.50%")
             try:
-                confidence = float(conf_str.replace("%", "")) / 100.0
+                confidence = float(str(conf_str).replace("%", "")) / 100.0
             except Exception:
-                confidence = 0.95
+                confidence = 0.98
 
     # If live_prediction was normal, check raw ML prediction
     if fault_class in ["Normal", "Normal Operation"] and prediction:
@@ -256,39 +258,34 @@ def evaluate_and_enqueue_alert(row: Dict[str, Any],
             conf_str = prediction.get("Confidence Score", "80.00%")
             trigger_reason = prediction.get("Recommended Action", "ML Anomaly detected")
             try:
-                confidence = float(conf_str.replace("%", "")) / 100.0
+                confidence = float(str(conf_str).replace("%", "")) / 100.0
             except Exception:
                 confidence = 0.80
+
+    # Also check row's own fault_type or label if present (replay / gateway)
+    if fault_class in ["Normal", "Normal Operation"]:
+        r_fault = row.get("fault_type") or row.get("label")
+        if r_fault and str(r_fault).strip() not in ["Normal", "Normal Operation", "—", "", "None"]:
+            fault_class = str(r_fault).strip()
+            severity = "WARNING" if fault_class.endswith("Risk") else "CRITICAL"
+            conf_str = "99.00%"
+            confidence = 0.99
+            trigger_reason = f"Active fault detected: {fault_class}"
 
     # If still normal, no alert required
     if fault_class in ["Normal", "Normal Operation", "—", None]:
         return False
 
-    # Check minimum confidence threshold
-    if confidence < 0.50:
-        return False
-
     # 2. Determine Severity
-    if confidence > 0.85:
-        severity = "CRITICAL"
-    else:
+    if live_prediction and live_prediction.get("severity"):
+        severity = live_prediction["severity"]
+    elif fault_class.endswith("Risk") or confidence <= 0.85:
         severity = "WARNING"
+    else:
+        severity = "CRITICAL"
 
-    # 3. Handle Telemetry Source Filter
+    # 3. Telemetry Source: all sources (BLE hardware, Gateway, and Replay) dispatch alerts
     source = row.get("source", "ble")
-    if source.startswith("replay:") and not DEMO_ALERTS:
-        # Suppress demo replay alerts
-        record_history_entry({
-            "timestamp": get_ist_now_str(),
-            "fault_class": fault_class,
-            "severity": severity,
-            "confidence": conf_str,
-            "recipient": ALERT_TO or SMTP_USER,
-            "status": "SUPPRESSED (Demo)",
-            "subject": f"[{severity}] AI-PBMS Alert: {fault_class} Detected",
-            "error": "Suppressed during replay simulation (DEMO_ALERTS=false)"
-        })
-        return False
 
     # 4. Check Cooldown and Escalation
     now = time.time()
