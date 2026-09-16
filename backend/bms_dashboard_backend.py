@@ -318,7 +318,7 @@ def check_stale_data():
         if bms_debug_state["last_packet_time"] > 0:
             age = current_time - bms_debug_state["last_packet_time"]
             bms_debug_state["data_age_seconds"] = round(age, 1)
-            if age > 3.0:
+            if age > 8.0:
                 bms_debug_state["is_stale"] = True
                 bms_debug_state["current_valid"] = False
                 bms_debug_state["voltage_valid"] = False
@@ -1943,7 +1943,13 @@ def add_telemetry():
         
         # Update debug state from payload
         with bms_debug_lock:
-            if "bluetooth_connected" in new_row:
+            source_tag = str(new_row.get("source", ""))
+            is_replay = source_tag.startswith("replay:")
+
+            # If payload explicitly provides validity flags (like live BLE gateway does)
+            has_explicit_valid_flags = ("voltage_valid" in new_row and "current_valid" in new_row)
+            
+            if "bluetooth_connected" in new_row and has_explicit_valid_flags and not is_replay:
                 bms_debug_state["bluetooth_connected"] = bool(new_row.get("bluetooth_connected", False))
                 if bms_debug_state["bluetooth_connected"]:
                     bms_debug_state["last_packet_time"] = time.time()
@@ -1954,12 +1960,12 @@ def add_telemetry():
                 bms_debug_state["last_parse_error"] = new_row.get("last_parse_error", "N/A")
                 bms_debug_state["current_raw_value"] = int(new_row.get("current_raw_value", 0))
                 bms_debug_state["current_scaled_value"] = float(new_row.get("current_scaled_value", 0.0))
-                bms_debug_state["current_valid"] = bool(new_row.get("current_valid", False))
-                bms_debug_state["voltage_valid"] = bool(new_row.get("voltage_valid", False))
-                bms_debug_state["temperature_valid"] = bool(new_row.get("temperature_valid", False))
-                bms_debug_state["cell_voltage_valid"] = bool(new_row.get("cell_voltage_valid", False))
+                bms_debug_state["current_valid"] = bool(new_row.get("current_valid", True))
+                bms_debug_state["voltage_valid"] = bool(new_row.get("voltage_valid", True))
+                bms_debug_state["temperature_valid"] = bool(new_row.get("temperature_valid", True))
+                bms_debug_state["cell_voltage_valid"] = bool(new_row.get("cell_voltage_valid", True))
             else:
-                # If we get a raw post from local simulator without BLE header (backward compatible)
+                # If we get a raw post from local simulator, replay mode, or standard payload
                 bms_debug_state["bluetooth_connected"] = True
                 bms_debug_state["last_packet_time"] = time.time()
                 bms_debug_state["is_stale"] = False
@@ -1968,20 +1974,21 @@ def add_telemetry():
                 i = float(new_row.get("current", 0.0))
                 t = float(new_row.get("temperature", 0.0))
                 
-                bms_debug_state["voltage_valid"] = (15.0 <= v <= 40.0)
-                bms_debug_state["current_valid"] = (-120.0 <= i <= 120.0)
+                # Physical validation bounds (supports 7S/8S/16S packs, faults, and simulated replays)
+                bms_debug_state["voltage_valid"] = (10.0 <= v <= 75.0)
+                bms_debug_state["current_valid"] = (-150.0 <= i <= 150.0)
                 bms_debug_state["temperature_valid"] = (-40.0 <= t <= 120.0)
                 
                 cell_ok = True
                 for idx in range(1, 9):
                     cell_val = float(new_row.get(f"cell_v{idx}", 3.2))
-                    if not (0.0 <= cell_val <= 5.0):
+                    if not (0.0 <= cell_val <= 5.5):
                         cell_ok = False
                 bms_debug_state["cell_voltage_valid"] = cell_ok
                 
                 bms_debug_state["current_scaled_value"] = i
                 bms_debug_state["current_raw_value"] = int(i * 100)
-                bms_debug_state["raw_packet_hex"] = "SIMULATION_DATA"
+                bms_debug_state["raw_packet_hex"] = "REPLAY_DATA" if is_replay else "SIMULATION_DATA"
                 bms_debug_state["packet_count"] += 1
                 
             bms_debug_state["dashboard_update_time"] = get_now_str()

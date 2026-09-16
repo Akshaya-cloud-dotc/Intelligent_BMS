@@ -200,6 +200,10 @@ def prepare_replay_rows(choice: int) -> tuple[str, list[dict]]:
             "ntc3": round(float(r.get("ntc3", r.get("temperature", 25.0))), 1),
             "ntc4": round(float(r.get("ntc4", r.get("temperature", 25.0))), 1),
             "bluetooth_connected": True,
+            "voltage_valid": True,
+            "current_valid": True,
+            "temperature_valid": True,
+            "cell_voltage_valid": True,
             "is_stale": False,
             "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         }
