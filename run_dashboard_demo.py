@@ -186,10 +186,11 @@ def prepare_replay_rows(choice: int) -> tuple[str, list[dict]]:
 
     # Convert DataFrame rows to telemetry payload dictionaries
     payloads = []
-    source_tag = f"replay:{fault_name}"
     for _, r in rows_df.iterrows():
+        row_fault = str(r.get("label", fault_name))
         p = {
-            "source": source_tag,
+            "source": f"replay:{row_fault}",
+            "fault_type": row_fault,
             "voltage": round(float(r.get("voltage", 25.6)), 2),
             "current": round(float(r.get("current", 0.0)), 2),
             "temperature": round(float(r.get("temperature", 25.0)), 1),

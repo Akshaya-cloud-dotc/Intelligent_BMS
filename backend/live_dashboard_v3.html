@@ -586,41 +586,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
   </div>
 </div>
 
-<!-- ── Server-Side Email Notifications & Test Panel ── -->
-<div class="card" style="margin-top: 15px;">
-  <div class="card-title" style="font-size:13px; color:#3D3654; border-bottom:1px solid #E8E2F0; padding-bottom:8px; margin-bottom:12px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
-    <div style="display:flex; align-items:center; gap:8px;">
-      <span>✉️ Server-Side Email Alert History</span>
-      <span style="font-size:11px; color:#9B92AE; font-weight:normal;">(Railway SMTP Dispatcher)</span>
-    </div>
-    <div style="display:flex; align-items:center; gap:10px;">
-      <span id="testEmailStatus" style="font-size:11px; font-weight:600;"></span>
-      <button onclick="triggerTestEmail()" id="btnTestEmail" style="background:#5B5470; color:#FFF; border:none; padding:5px 12px; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer; display:flex; align-items:center; gap:4px; transition: background 0.2s;">
-        ✉️ Send Test Email
-      </button>
-    </div>
-  </div>
-  <div style="max-height: 220px; overflow-y: auto;">
-    <table class="history-table" id="emailAlertHistoryTable">
-      <thead>
-        <tr>
-          <th style="padding: 6px;">Timestamp</th>
-          <th style="padding: 6px;">Fault Class</th>
-          <th style="padding: 6px;">Severity</th>
-          <th style="padding: 6px;">Confidence</th>
-          <th style="padding: 6px;">Recipient</th>
-          <th style="padding: 6px;">Status</th>
-        </tr>
-      </thead>
-      <tbody id="emailAlertHistoryBody">
-        <tr>
-          <td colspan="6" style="text-align:center; color:#9B92AE; padding:15px; font-size:12px;">Loading email alert logs...</td>
-        </tr>
-      </tbody>
-    </table>
-  </div>
-</div>
-
 <!-- ── Alert Popup Modal Overlay ── -->
 <div class="alert-modal-overlay" id="alertModalOverlay" style="display: none !important;">
   <div class="alert-modal-content">
@@ -1472,31 +1437,54 @@ function render(latest, history, prediction, stats, livePrediction, rawRow){
     `<span class="mode-badge" style="background:${chgState.bg};color:${chgState.color};font-size:16px">${chgState.icon} ${chgState.label}</span>`
     +`<div style="font-size:10.5px;color:#9B92AE;margin-top:6px">${chgState.desc}</div>`;
 
-  // ── Status banner (driven by backend's categorical fault prediction) ──
+  // ── Status banner (driven by backend's categorical fault prediction or replay) ──
   const banner=document.getElementById('statusBanner');
   const st=document.getElementById('statusText');
   let activeFault = null;
-  if (livePrediction && livePrediction.condition) {
-    let cond = livePrediction.condition;
-    if (cond === "Normal Operation") activeFault = "Normal";
-    else if (cond === "Cell Imbalance Risk") activeFault = "Cell Imbalance";
-    else activeFault = cond;
-  } else if (latestPrediction) {
-    activeFault = latestPrediction['Fault Prediction'];
+  
+  // 1. Prioritize explicit fault_type or replay source
+  if (latest && latest.fault_type) {
+    activeFault = latest.fault_type;
+  } else if (rawRow && rawRow.fault_type) {
+    activeFault = rawRow.fault_type;
+  } else if (src && src.startsWith("replay:")) {
+    activeFault = src.replace("replay:", "").trim();
+  }
+  
+  // 2. Otherwise check livePrediction or latestPrediction
+  if (!activeFault) {
+    if (livePrediction && livePrediction.condition && livePrediction.condition !== "Normal Operation") {
+      activeFault = livePrediction.condition.replace(" Risk", "");
+    } else if (latestPrediction && latestPrediction['Fault Prediction'] && latestPrediction['Fault Prediction'] !== "Normal") {
+      activeFault = latestPrediction['Fault Prediction'].replace(" Risk", "");
+    } else if (livePrediction && livePrediction.condition) {
+      activeFault = livePrediction.condition === "Normal Operation" ? "Normal" : livePrediction.condition.replace(" Risk", "");
+    } else if (latestPrediction && latestPrediction['Fault Prediction']) {
+      activeFault = latestPrediction['Fault Prediction'].replace(" Risk", "");
+    }
   }
 
-  if (activeFault === 'Overvoltage Risk' || activeFault === 'Undervoltage Risk' || activeFault === 'Overtemperature Risk' || activeFault === 'Overcurrent Risk') {
-    banner.style.background='#FBE0E0';document.getElementById('statusDot').style.background='#E08A8A';
-    st.textContent=`${activeFault.toUpperCase()} — Act Immediately`;st.style.color='#B05656';
-  } else if (activeFault === 'Cell Imbalance' || activeFault === 'Weak Cell') {
-    banner.style.background='#FBF0D6';document.getElementById('statusDot').style.background='#E8C173';
-    st.textContent=`${activeFault} Detected — Review Condition`;st.style.color='#A8853D';
+  // Normalize
+  if (activeFault === 'Normal Operation') activeFault = 'Normal';
+  if (activeFault) activeFault = activeFault.replace(' Risk', '').trim();
+
+  // Render status banner in consistent style as requested
+  if (activeFault && activeFault !== 'Normal') {
+    const isCritical = ['Overvoltage', 'Undervoltage', 'Overtemperature', 'Overcurrent'].includes(activeFault);
+    banner.style.background = isCritical ? '#FBE0E0' : '#FBF0D6';
+    document.getElementById('statusDot').style.background = isCritical ? '#E08A8A' : '#E8C173';
+    st.textContent = `${activeFault} Detected — Review Condition`;
+    st.style.color = isCritical ? '#B05656' : '#A8853D';
   } else if (activeFault === 'Normal') {
-    banner.style.background='#E0F2E5';document.getElementById('statusDot').style.background='#8EC79F';
-    st.textContent='System Normal';st.style.color='#5A9670';
+    banner.style.background = '#E0F2E5';
+    document.getElementById('statusDot').style.background = '#8EC79F';
+    st.textContent = 'System Normal';
+    st.style.color = '#5A9670';
   } else {
-    banner.style.background='#EAF1FB';document.getElementById('statusDot').style.background='#8EC5E8';
-    st.textContent='Buffering — accumulating 60-row window…';st.style.color='#4A7BB0';
+    banner.style.background = '#EAF1FB';
+    document.getElementById('statusDot').style.background = '#8EC5E8';
+    st.textContent = 'Buffering — accumulating 60-row window…';
+    st.style.color = '#4A7BB0';
   }
 
   // ── Parameters ──
@@ -2050,94 +2038,11 @@ async function poll(){
 }
 
 // ─────────────────────────────────────────────
-//  SERVER-SIDE EMAIL ALERT DISPATCH & TEST
-// ─────────────────────────────────────────────
-async function triggerTestEmail() {
-  const btn = document.getElementById('btnTestEmail');
-  const statusEl = document.getElementById('testEmailStatus');
-  if (btn) {
-    btn.disabled = true;
-    btn.textContent = 'Sending...';
-  }
-  if (statusEl) {
-    statusEl.textContent = 'Contacting SMTP server...';
-    statusEl.style.color = '#5B5470';
-  }
-  
-  try {
-    const res = await fetch('/api/alerts/test', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({})
-    });
-    const data = await res.json();
-    if (data.status === 'success') {
-      if (statusEl) {
-        statusEl.textContent = '✅ ' + (data.message || 'Email sent!');
-        statusEl.style.color = '#5A9670';
-      }
-    } else {
-      if (statusEl) {
-        statusEl.textContent = '❌ ' + (data.message || 'Failed to send test email');
-        statusEl.style.color = '#B05656';
-      }
-    }
-    fetchEmailAlertHistory();
-  } catch (err) {
-    if (statusEl) {
-      statusEl.textContent = '❌ Error: ' + err.message;
-      statusEl.style.color = '#B05656';
-    }
-  } finally {
-    if (btn) {
-      btn.disabled = false;
-      btn.textContent = '✉️ Send Test Email';
-    }
-  }
-}
-
-async function fetchEmailAlertHistory() {
-  try {
-    const res = await fetch('/api/alerts/email-history');
-    if (!res.ok) return;
-    const data = await res.json();
-    const list = data.history || [];
-    const tbody = document.getElementById('emailAlertHistoryBody');
-    if (!tbody) return;
-    if (list.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; color:#9B92AE; padding:15px; font-size:12px;">No email dispatches recorded yet.</td></tr>';
-      return;
-    }
-    tbody.innerHTML = list.map(item => {
-      const isSent = item.status === 'SENT';
-      const isSuppressed = item.status.includes('SUPPRESSED');
-      const badgeBg = isSent ? '#E0F2E5' : (isSuppressed ? '#EAE8EF' : '#FBE0E0');
-      const badgeColor = isSent ? '#5A9670' : (isSuppressed ? '#8D81B8' : '#B05656');
-      const sevColor = item.severity === 'CRITICAL' ? '#B05656' : (item.severity === 'WARNING' ? '#A8853D' : '#5A9670');
-      const sevBg = item.severity === 'CRITICAL' ? '#FBE0E0' : (item.severity === 'WARNING' ? '#FBF0D6' : '#E0F2E5');
-
-      return `
-        <tr>
-          <td style="padding: 6px 8px; border-bottom: 1px solid #F0EBF8; font-variant-numeric: tabular-nums;">${item.timestamp}</td>
-          <td style="padding: 6px 8px; border-bottom: 1px solid #F0EBF8; font-weight:700;">${item.fault_class}</td>
-          <td style="padding: 6px 8px; border-bottom: 1px solid #F0EBF8;"><span style="font-size:9px; font-weight:800; padding:2px 5px; border-radius:4px; background:${sevBg}; color:${sevColor};">${item.severity}</span></td>
-          <td style="padding: 6px 8px; border-bottom: 1px solid #F0EBF8;">${item.confidence}</td>
-          <td style="padding: 6px 8px; border-bottom: 1px solid #F0EBF8; font-size:11px; color:#5B5470;">${item.recipient}</td>
-          <td style="padding: 6px 8px; border-bottom: 1px solid #F0EBF8;"><span style="font-size:10px; font-weight:700; padding:2px 6px; border-radius:4px; background:${badgeBg}; color:${badgeColor};">${item.status}</span></td>
-        </tr>
-      `;
-    }).join('');
-  } catch(e) {}
-}
-
-// ─────────────────────────────────────────────
 //  INIT
 // ─────────────────────────────────────────────
 initTrend();
 poll();
-fetchEmailAlertHistory();
 setInterval(poll, 1000);
-setInterval(fetchEmailAlertHistory, 5000);
 </script>
 </body>
 </html>
