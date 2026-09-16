@@ -201,15 +201,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
   </div>
 </div>
 
-<!-- ── Replay Mode Warning Banner ── -->
-<div id="replayBanner" style="display:none; background:#FFF3CD; border:2px solid #FFEBAA; color:#856404; padding:10px 16px; border-radius:10px; margin-bottom:12px; font-weight:700; font-size:14px; align-items:center; justify-content:space-between; box-shadow:0 2px 8px rgba(133,100,4,0.1);">
-  <div style="display:flex; align-items:center; gap:8px;">
-    <span style="font-size:18px;">⚠️</span>
-    <span id="replayBannerText">REPLAY — CELL IMBALANCE</span>
-  </div>
-  <span style="font-size:11px; background:#856404; color:#FFF; padding:2px 8px; border-radius:12px; text-transform:uppercase;">Demonstration Replay</span>
-</div>
-
 <!-- ── Status Banner ── -->
 <div class="status-banner" id="statusBanner" style="background:#E0F2E5">
   <span class="status-dot" id="statusDot" style="background:#8EC79F"></span>
@@ -1398,19 +1389,7 @@ function render(latest, history, prediction, stats, livePrediction, rawRow){
   latestPrediction = prediction || null;
   latestStats = stats || null;
 
-  // ── Replay Mode Banner check ──
   const src = (rawRow && rawRow.source) || (latest && latest.source) || "";
-  const replayBanner = document.getElementById("replayBanner");
-  if (replayBanner) {
-    if (src.startsWith("replay:")) {
-      const faultName = src.replace("replay:", "").trim();
-      replayBanner.style.display = "flex";
-      const bannerText = document.getElementById("replayBannerText");
-      if (bannerText) bannerText.textContent = `REPLAY — ${faultName.toUpperCase()}`;
-    } else {
-      replayBanner.style.display = "none";
-    }
-  }
 
   const f=computeFaults(latest,history);
   let modeName = prediction ? prediction['Operating Mode'] : ({0:'IDLE',1:'ACCEL',2:'CRUISE',3:'DECEL'}[latest.driving_mode]||'IDLE');
