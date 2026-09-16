@@ -41,6 +41,12 @@ DEMO_DATASET_PATH = os.getenv("DEMO_DATASET_PATH", "bms_data_labeled.xlsx")
 # Cached DataFrame in memory
 _CACHED_DF = None
 _BROWSER_OPENED = False
+_RECENT_ROWS = []
+
+try:
+    from backend.alerts.mailer import evaluate_and_enqueue_alert
+except Exception:
+    evaluate_and_enqueue_alert = None
 
 
 def get_dataset() -> pd.DataFrame:
@@ -247,6 +253,27 @@ def post_row(payload: dict) -> bool:
                 except Exception:
                     pass
 
+            # Local email alerting for replay faults (direct to akshayavg1@gmail.com)
+            if evaluate_and_enqueue_alert:
+                try:
+                    f_type = payload.get("fault_type", "Normal")
+                    if f_type and f_type not in ["Normal", "Normal Operation", "—", ""]:
+                        is_risk = "Risk" in f_type
+                        sev = "WARNING" if is_risk else "CRITICAL"
+                        evaluate_and_enqueue_alert(
+                            row=payload,
+                            prediction=None,
+                            live_prediction={
+                                "condition": f_type,
+                                "severity": sev,
+                                "confidence": "85.0%" if is_risk else "99.5%",
+                                "reason": f"Active dynamic fault: {f_type}"
+                            },
+                            recent_rows=list(_RECENT_ROWS)
+                        )
+                except Exception:
+                    pass
+
             return True
     except urllib.error.HTTPError as he:
         if he.code == 401:
@@ -275,6 +302,9 @@ def run_replay(fault_name: str, rows: list[dict]):
             success = post_row(row)
             if success:
                 sent_count += 1
+                _RECENT_ROWS.append(dict(row))
+                if len(_RECENT_ROWS) > 20:
+                    _RECENT_ROWS.pop(0)
                 v = row.get("voltage", 0.0)
                 i = row.get("current", 0.0)
                 t = row.get("temperature", 0.0)

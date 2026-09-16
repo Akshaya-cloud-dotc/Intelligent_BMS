@@ -183,7 +183,7 @@ def _worker_loop():
 
             print(f"[MAILER] Dispatching alert email to {to_addr} for [{severity}] {fault_class}...")
             _send_smtp_message(to_addr, subject, text, html, csv_content)
-            print(f"[MAILER] Alert email sent successfully to {to_addr}! ✅")
+            print(f"[MAILER] Alert email sent successfully to {to_addr}! [OK]")
 
             record_history_entry({
                 "timestamp": get_ist_now_str(),

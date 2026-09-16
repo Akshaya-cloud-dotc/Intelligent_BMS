@@ -479,12 +479,11 @@ def get_physics_informed_prediction(row, pred, cfg, chem_type):
     for i in range(1, 9):
         cv = row.get(f"cell_v{i}")
         if cv is not None:
-            val = float(cv)
-            if val >= 0.5:
-                cell_voltages.append(val)
+            cell_voltages.append(float(cv))
             
     max_cell = max(cell_voltages) if cell_voltages else (voltage / 8.0)
     min_cell = min(cell_voltages) if cell_voltages else (voltage / 8.0)
+    delta_v = max(delta_v, (max_cell - min_cell)) if cell_voltages else delta_v
 
     # 0. If replay scenario or explicit row fault is provided, honor that specific fault class directly
     if is_replay and row_fault:
@@ -638,10 +637,12 @@ def get_physics_informed_prediction(row, pred, cfg, chem_type):
         trigger_val = f"{max_cell:.3f} V"
         threshold_val = f"{cfg['cell_critical_max']:.3f} V"
     elif min_cell <= cfg["cell_critical_min"]:
+        low_cells = [f"Cell {idx}" for idx, cv in enumerate(cell_voltages, 1) if cv <= cfg["cell_critical_min"]]
+        cell_str = ", ".join(low_cells) if low_cells else "Min Cell"
         override_condition = "Undervoltage Risk"
         override_severity = "CRITICAL"
-        override_reason = "CRITICAL: Cell voltage is below absolute safety minimum limit."
-        trigger_param = "Min Cell Voltage"
+        override_reason = f"CRITICAL: {cell_str} voltage ({min_cell:.3f} V) is below absolute safety minimum limit ({cfg['cell_critical_min']:.3f} V). Extreme Undervoltage / Cell Dropout detected."
+        trigger_param = f"{cell_str} Voltage"
         trigger_val = f"{min_cell:.3f} V"
         threshold_val = f"{cfg['cell_critical_min']:.3f} V"
     elif abs(current) >= cfg["current_critical_limit"]:
@@ -785,9 +786,7 @@ def evaluate_alerts(row, prediction, cfg, cycle_analytics):
     for i in range(1, 9):
         cv = row.get(f"cell_v{i}")
         if cv is not None:
-            val = float(cv)
-            if val >= 0.5:  # Ignore empty/disconnected channels (< 0.5V)
-                cell_voltages.append(val)
+            cell_voltages.append(float(cv))
             
     max_cell = max(cell_voltages) if cell_voltages else (voltage / 8.0)
     min_cell = min(cell_voltages) if cell_voltages else (voltage / 8.0)
@@ -2197,10 +2196,6 @@ def add_telemetry():
                     continue
                 val = float(new_row[key])
                 
-                # For calculations, smooth, and ML, use the average for empty/disconnected channels (< 0.5V)
-                if key.startswith("cell_v") and val < 0.5:
-                    val = mean_active_v
-                    
                 if key not in filtered_state or filtered_state[key] is None:
                     filtered_state[key] = val
                 else:
@@ -2209,10 +2204,9 @@ def add_telemetry():
                     filtered_state[key] = round(alpha * val + (1.0 - alpha) * filtered_state[key], 4)
                 smoothed_row[key] = filtered_state[key]
                 
-        # Calculate delta_v ONLY from active cell voltages (value >= 0.5V)
-        cell_voltages = [smoothed_row[f"cell_v{i}"] for i in range(1, 9)]
-        active_voltages = [v for v in cell_voltages if v >= 0.5]
-        smoothed_row["delta_v"] = round(max(active_voltages) - min(active_voltages), 4) if active_voltages else 0.0
+        # Calculate delta_v across all cell voltages (ensures dropped/zero cells trigger imbalance and undervoltage)
+        cell_voltages = [float(smoothed_row[f"cell_v{i}"]) for i in range(1, 9) if smoothed_row.get(f"cell_v{i}") is not None]
+        smoothed_row["delta_v"] = round(max(cell_voltages) - min(cell_voltages), 4) if cell_voltages else 0.0
 
         # Extraction and debug logging helper
         def extract_raw_temp_bytes_from_hex(raw_hex):

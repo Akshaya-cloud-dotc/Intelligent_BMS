@@ -321,6 +321,61 @@ class BMSGateway:
                     self.log(f"Row sent! Buffer: {buf_len}/60 | V={volts}V, I={curr}A, SOC={soc}% | Fault: {pred.get('Fault Prediction')} ({pred.get('Confidence Score')})")
                 else:
                     self.log(f"Row sent! Buffer: {buf_len}/60 | V={volts}V, I={curr}A, SOC={soc}% (Accumulating window)")
+
+                # Local Alert Evaluation & Instant Dispatch (akshayavg1@gmail.com)
+                try:
+                    from alerts.mailer import evaluate_and_enqueue_alert
+                except Exception:
+                    try:
+                        from backend.alerts.mailer import evaluate_and_enqueue_alert
+                    except Exception:
+                        evaluate_and_enqueue_alert = None
+
+                if evaluate_and_enqueue_alert:
+                    try:
+                        v_cells = [float(self.latest_data[f"cell_v{idx}"]) for idx in range(1, 9) if self.latest_data.get(f"cell_v{idx}") is not None]
+                        min_c = min(v_cells) if v_cells else 3.2
+                        max_c = max(v_cells) if v_cells else 3.2
+                        dv = float(self.latest_data.get("delta_v", max_c - min_c))
+                        t_val = float(self.latest_data.get("temperature", 25.0))
+                        
+                        f_cond = None
+                        sev = "WARNING"
+                        if min_c <= 2.80:
+                            f_cond = "Undervoltage Risk"
+                            sev = "CRITICAL"
+                        elif max_c >= 4.25:
+                            f_cond = "Overvoltage Risk"
+                            sev = "CRITICAL"
+                        elif t_val >= 55.0:
+                            f_cond = "Overtemperature Risk"
+                            sev = "CRITICAL"
+                        elif dv >= 0.15:
+                            f_cond = "Cell Imbalance Risk"
+                            sev = "CRITICAL"
+                        elif min_c <= 3.0:
+                            f_cond = "Undervoltage Risk"
+                            sev = "WARNING"
+                        elif max_c >= 4.15:
+                            f_cond = "Overvoltage Risk"
+                            sev = "WARNING"
+                        elif t_val >= 45.0:
+                            f_cond = "Overtemperature Risk"
+                            sev = "WARNING"
+                        elif dv >= 0.08:
+                            f_cond = "Cell Imbalance Risk"
+                            sev = "WARNING"
+
+                        if f_cond:
+                            evaluate_and_enqueue_alert(
+                                row=self.latest_data,
+                                prediction=pred,
+                                live_prediction={"condition": f_cond, "severity": sev, "confidence": "99.0%"},
+                                recent_rows=[]
+                            )
+                    except Exception as alrt_e:
+                        pass
+
                 return True
         except Exception as e:
             self.log(f"Error POSTing to backend: {e}")
@@ -469,8 +524,7 @@ class BMSGateway:
                     v, i, soc, t, ntc1, ntc2, ntc3, ntc4 = parse_jbd_basic(self.response_basic)
                     cells = parse_jbd_cells(self.response_cells)
                     # Keep the true total pack voltage from basic info instead of summing padded cells
-                    active_cells = [c for c in cells if c >= 0.5]
-                    delta_v = round(max(active_cells) - min(active_cells), 4) if active_cells else 0.0
+                    delta_v = round(max(cells) - min(cells), 4) if cells else 0.0
                     
                     # Print raw packet debug output
                     print("--------------------------------------------------")
