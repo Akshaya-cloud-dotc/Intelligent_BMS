@@ -25,6 +25,15 @@ import datasheet_parser
 from werkzeug.utils import secure_filename
 import alerts
 import mailer
+try:
+    from alerts.mailer import evaluate_and_enqueue_alert, send_test_email, get_alert_history
+except Exception:
+    try:
+        from backend.alerts.mailer import evaluate_and_enqueue_alert, send_test_email, get_alert_history
+    except Exception:
+        evaluate_and_enqueue_alert = None
+        send_test_email = None
+        get_alert_history = None
 import subprocess
 import io
 from parser import extract_parameters_from_pdf
@@ -467,7 +476,9 @@ def get_physics_informed_prediction(row, pred, cfg, chem_type):
     for i in range(1, 9):
         cv = row.get(f"cell_v{i}")
         if cv is not None:
-            cell_voltages.append(float(cv))
+            val = float(cv)
+            if val >= 0.5:
+                cell_voltages.append(val)
             
     max_cell = max(cell_voltages) if cell_voltages else (voltage / 8.0)
     min_cell = min(cell_voltages) if cell_voltages else (voltage / 8.0)
@@ -1353,7 +1364,8 @@ def close_active_cycle(reason="transition"):
         end_voltage = float(end_row.get("voltage", 25.6))
         
         cell_v_end = [float(end_row.get(f"cell_v{i}", 3.2)) for i in range(1, 9)]
-        spread_end = max(cell_v_end) - min(cell_v_end)
+        active_cells_end = [c for c in cell_v_end if c >= 0.5]
+        spread_end = max(active_cells_end) - min(active_cells_end) if active_cells_end else 0.0
         
         all_voltages = [float(r.get("voltage", 0.0)) for r in rows]
         all_currents = [float(r.get("current", 0.0)) for r in rows]
@@ -1362,7 +1374,7 @@ def close_active_cycle(reason="transition"):
         cell_cols = [f"cell_v{i}" for i in range(1, 9)]
         all_cells = []
         for r in rows:
-            all_cells.extend([float(r.get(col, 3.2)) for col in cell_cols])
+            all_cells.extend([float(r.get(col, 3.2)) for col in cell_cols if float(r.get(col, 3.2)) >= 0.5])
             
         max_cell = max(all_cells) if all_cells else 4.2
         min_cell = min(all_cells) if all_cells else 2.5
@@ -1464,7 +1476,8 @@ def update_cycle_tracking(row):
         current_time = time.time()
         
         cell_v = [float(row.get(f"cell_v{i}", 3.2)) for i in range(1, 9)]
-        spread = max(cell_v) - min(cell_v)
+        active_cells = [c for c in cell_v if c >= 0.5]
+        spread = max(active_cells) - min(active_cells) if active_cells else 0.0
         
         if active_cycle["type"] is None:
             if inst_state in ["Charge", "Discharge"]:
@@ -1640,7 +1653,8 @@ def get_cycle_analytics_summary():
         temp_rise = temp - start_t
         
         cell_voltages = [float(latest_row.get(f"cell_v{i}", 3.2)) for i in range(1, 9)]
-        current_spread = max(cell_voltages) - min(cell_voltages) if cell_voltages else 0.0
+        active_voltages = [c for c in cell_voltages if c >= 0.5]
+        current_spread = max(active_voltages) - min(active_voltages) if active_voltages else 0.0
         
         soc_diff = abs(soc - start_soc)
         expected_soc = start_soc + (avg_rate * elapsed_sec)
@@ -1739,7 +1753,8 @@ def get_cycle_analytics_summary():
         temp_rise = temp - start_t
         
         cell_voltages = [float(latest_row.get(f"cell_v{i}", 3.2)) for i in range(1, 9)]
-        current_spread = max(cell_voltages) - min(cell_voltages) if cell_voltages else 0.0
+        active_voltages = [c for c in cell_voltages if c >= 0.5]
+        current_spread = max(active_voltages) - min(active_voltages) if active_voltages else 0.0
         
         soc_diff = abs(soc - start_soc)
         expected_soc = start_soc - (avg_rate * elapsed_sec)
@@ -1786,7 +1801,7 @@ def get_cycle_analytics_summary():
                 deviation_level = "High deviation"
                 deviation_reasons.append(f"Temperature rise is {temp_dev:.0f}% higher than previous cycle history")
                 
-            if min(cell_voltages) <= 3.0:
+            if active_voltages and min(active_voltages) <= 3.0:
                 discharging_risks_active.append("Undervoltage risk")
                 likely_fault_to_occur = "Undervoltage Risk"
                 deviation_level = "High deviation"
@@ -1831,7 +1846,8 @@ def get_cycle_analytics_summary():
             t_val = latest_raw_row.get("temperature")
             t = float(t_val) if t_val is not None else 25.0
             cell_v = [float(latest_raw_row.get(f"cell_v{i}", 3.2)) for i in range(1, 9)]
-            spread = max(cell_v) - min(cell_v) if cell_v else 0.0
+            active_cells = [c for c in cell_v if c >= 0.5]
+            spread = max(active_cells) - min(active_cells) if active_cells else 0.0
             
         unusual_drift = "None"
         if spread > 0.12:
@@ -1844,6 +1860,8 @@ def get_cycle_analytics_summary():
             deviation_level = "Normal deviation"
             state_analysis_msg = "Idle Monitoring: System is stable with no unusual drift."
             idle_status_msg = "All parameters stable. No unusual drift compared to previous cycle history."
+            likely_fault_to_occur = "None"
+            behavior_trend = "Stable"
             
         idle_analysis = {
             "status": "Normal" if unusual_drift == "None" else "Abnormal",
@@ -1908,10 +1926,11 @@ def add_telemetry():
     Accepts a single new row of telemetry from sensors or simulator.
     Dual logs the row, validates it, maintains sliding buffer, and runs inference.
     """
-    # Ingest authentication bypassed for competition staging
-    # _token = os.environ.get("INGEST_TOKEN")
-    # if _token and request.headers.get("X-Ingest-Token") != _token:
-    #     return jsonify({"error": "unauthorized"}), 401
+    _token = os.environ.get("INGEST_TOKEN")
+    if _token:
+        client_token = request.headers.get("X-Ingest-Token", "")
+        if client_token != _token:
+            return jsonify({"error": "unauthorized", "message": "Invalid or missing X-Ingest-Token"}), 401
 
     global latest_raw_row
     try:
@@ -2126,7 +2145,16 @@ def add_telemetry():
         cfg = CHEMISTRY_CONFIGS[chem_type]
         live_prediction = get_physics_informed_prediction(smoothed_row, prediction, cfg, chem_type)
 
+        # Dispatch server-side email alert if fault criteria met
+        if evaluate_and_enqueue_alert is not None:
+            try:
+                recent_rows_copy = list(telemetry_buffer)[-10:]
+                evaluate_and_enqueue_alert(smoothed_row, prediction, live_prediction, recent_rows_copy)
+            except Exception as mail_err:
+                print(f"[MAILER ERROR] Failed to evaluate alert mailer: {mail_err}")
+
         response_data = {
+            "source": new_row.get("source", "ble"),
             "buffer_length": len(telemetry_buffer),
             "status": "success" if prediction else "accumulating",
             "prediction": prediction,
@@ -2375,6 +2403,26 @@ def live_bms_data_mirror():
         return add_telemetry()
     else:
         return get_current_status()
+
+@app.route('/api/alerts/email-history', methods=['GET', 'OPTIONS'])
+def api_alerts_email_history():
+    """Returns recent server-side email dispatch logs."""
+    if request.method == 'OPTIONS':
+        return app.make_default_options_response()
+    if get_alert_history:
+        return jsonify({"status": "success", "history": get_alert_history()})
+    return jsonify({"status": "success", "history": []})
+
+@app.route('/api/alerts/test', methods=['POST', 'OPTIONS'])
+def api_alerts_test():
+    """Triggers an immediate test email verification."""
+    if request.method == 'OPTIONS':
+        return app.make_default_options_response()
+    if send_test_email:
+        data = request.json or {}
+        res = send_test_email(data.get("to"))
+        return jsonify(res)
+    return jsonify({"status": "error", "message": "Mailer module not available"}), 500
 
 # ── React Configurator & PDF API Integration ──
 frontend_build_path = os.path.join(MODEL_DIR, "dist")

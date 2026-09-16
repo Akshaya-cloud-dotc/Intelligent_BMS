@@ -132,12 +132,15 @@ def parse_jbd_cells(data):
 # GATEWAY CLASS
 # ==============================================================================
 class BMSGateway:
-    def __init__(self, bms_type: str, mac_address: str, api_url: str, poll_interval: float, verbose: bool):
+    def __init__(self, bms_type: str = DEFAULT_BMS_TYPE, mac_address: str = DEFAULT_MAC_ADDRESS, 
+                 api_url: str = DEFAULT_API_URL, poll_interval: float = DEFAULT_POLL_INTERVAL,
+                 verbose: bool = False, source: str = "ble"):
         self.bms_type = bms_type.upper()
         self.mac_address = mac_address
         self.api_url = api_url
         self.poll_interval = poll_interval
         self.verbose = verbose
+        self.source = source
         
         # Debugging and validity tracking fields
         self.packet_count = 0
@@ -286,6 +289,9 @@ class BMSGateway:
 
     def post_telemetry(self) -> bool:
         """POSTs current telemetry payload to the Flask backend and logs locally."""
+        # Ensure source tag is present
+        self.latest_data["source"] = getattr(self, "source", "ble")
+        
         # Save telemetry to local CSV and Excel files
         self.log_to_local_csv()
         self.log_to_local_xlsx()
@@ -317,7 +323,28 @@ class BMSGateway:
                     self.log(f"Row sent! Buffer: {buf_len}/60 | V={volts}V, I={curr}A, SOC={soc}% (Accumulating window)")
                 return True
         except Exception as e:
-            self.log(f"Error POSTing to backend: {e}. Make sure Flask server is running on Port 5000!")
+            self.log(f"Error POSTing to backend: {e}")
+            return False
+
+    def post_heartbeat(self, status: str = "disconnected") -> bool:
+        """POSTs a status heartbeat when BLE is disconnected so the dashboard reflects stale state."""
+        try:
+            payload = {
+                "status": status,
+                "bluetooth_connected": False,
+                "is_stale": True,
+                "source": getattr(self, "source", "ble"),
+                "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            }
+            req_data = json.dumps(payload).encode("utf-8")
+            headers = {
+                "Content-Type": "application/json",
+                "X-Ingest-Token": os.environ.get("INGEST_TOKEN", "")
+            }
+            req = urllib.request.Request(self.api_url, data=req_data, headers=headers)
+            with urllib.request.urlopen(req, timeout=2.0) as resp:
+                return True
+        except Exception:
             return False
 
     # --------------------------------------------------------------------------
@@ -651,8 +678,11 @@ class BMSGateway:
                     "current_valid": False,
                     "voltage_valid": False,
                     "temperature_valid": False,
-                    "cell_voltage_valid": False
+                    "cell_voltage_valid": False,
+                    "status": "disconnected",
+                    "is_stale": True
                 })
+                self.post_heartbeat("disconnected")
                 self.post_telemetry()
                 
                 self.rx_buffer.clear()
@@ -674,8 +704,8 @@ if __name__ == "__main__":
                         help="API Endpoint URL of the Flask server")
     parser.add_argument("--interval", type=float, default=DEFAULT_POLL_INTERVAL,
                         help="Polling interval in seconds")
-    parser.add_argument("--verbose", action="store_true",
-                        help="Print raw packet debug logs")
+    parser.add_argument("--source", type=str, default="ble",
+                        help="Telemetry source tag (default: ble)")
     
     args = parser.parse_args()
     
@@ -686,6 +716,7 @@ if __name__ == "__main__":
     print(f" Target Device MAC   : {args.mac if args.bms != 'MOCK' else 'N/A'}")
     print(f" Local Flask API URL : {args.url}")
     print(f" Polling Interval    : {args.interval} seconds")
+    print(f" Telemetry Source    : {args.source}")
     print("=" * 60)
     
     gateway = BMSGateway(
@@ -693,7 +724,8 @@ if __name__ == "__main__":
         mac_address=args.mac,
         api_url=args.url,
         poll_interval=args.interval,
-        verbose=args.verbose
+        verbose=args.verbose,
+        source=args.source
     )
     
     try:

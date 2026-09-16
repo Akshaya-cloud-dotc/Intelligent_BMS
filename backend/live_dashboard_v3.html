@@ -201,6 +201,15 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
   </div>
 </div>
 
+<!-- ── Replay Mode Warning Banner ── -->
+<div id="replayBanner" style="display:none; background:#FFF3CD; border:2px solid #FFEBAA; color:#856404; padding:10px 16px; border-radius:10px; margin-bottom:12px; font-weight:700; font-size:14px; align-items:center; justify-content:space-between; box-shadow:0 2px 8px rgba(133,100,4,0.1);">
+  <div style="display:flex; align-items:center; gap:8px;">
+    <span style="font-size:18px;">⚠️</span>
+    <span id="replayBannerText">REPLAY — CELL IMBALANCE</span>
+  </div>
+  <span style="font-size:11px; background:#856404; color:#FFF; padding:2px 8px; border-radius:12px; text-transform:uppercase;">Demonstration Replay</span>
+</div>
+
 <!-- ── Status Banner ── -->
 <div class="status-banner" id="statusBanner" style="background:#E0F2E5">
   <span class="status-dot" id="statusDot" style="background:#8EC79F"></span>
@@ -571,6 +580,41 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
       <tbody id="alertHistoryBody">
         <tr>
           <td colspan="7" style="text-align:center; color:#9B92AE; padding:15px; font-size:12px;">No historical alerts logged in this session.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ── Server-Side Email Notifications & Test Panel ── -->
+<div class="card" style="margin-top: 15px;">
+  <div class="card-title" style="font-size:13px; color:#3D3654; border-bottom:1px solid #E8E2F0; padding-bottom:8px; margin-bottom:12px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+    <div style="display:flex; align-items:center; gap:8px;">
+      <span>✉️ Server-Side Email Alert History</span>
+      <span style="font-size:11px; color:#9B92AE; font-weight:normal;">(Railway SMTP Dispatcher)</span>
+    </div>
+    <div style="display:flex; align-items:center; gap:10px;">
+      <span id="testEmailStatus" style="font-size:11px; font-weight:600;"></span>
+      <button onclick="triggerTestEmail()" id="btnTestEmail" style="background:#5B5470; color:#FFF; border:none; padding:5px 12px; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer; display:flex; align-items:center; gap:4px; transition: background 0.2s;">
+        ✉️ Send Test Email
+      </button>
+    </div>
+  </div>
+  <div style="max-height: 220px; overflow-y: auto;">
+    <table class="history-table" id="emailAlertHistoryTable">
+      <thead>
+        <tr>
+          <th style="padding: 6px;">Timestamp</th>
+          <th style="padding: 6px;">Fault Class</th>
+          <th style="padding: 6px;">Severity</th>
+          <th style="padding: 6px;">Confidence</th>
+          <th style="padding: 6px;">Recipient</th>
+          <th style="padding: 6px;">Status</th>
+        </tr>
+      </thead>
+      <tbody id="emailAlertHistoryBody">
+        <tr>
+          <td colspan="6" style="text-align:center; color:#9B92AE; padding:15px; font-size:12px;">Loading email alert logs...</td>
         </tr>
       </tbody>
     </table>
@@ -1388,6 +1432,21 @@ function render(latest, history, prediction, stats, livePrediction, rawRow){
   if(!latest) return;
   latestPrediction = prediction || null;
   latestStats = stats || null;
+
+  // ── Replay Mode Banner check ──
+  const src = (rawRow && rawRow.source) || (latest && latest.source) || "";
+  const replayBanner = document.getElementById("replayBanner");
+  if (replayBanner) {
+    if (src.startsWith("replay:")) {
+      const faultName = src.replace("replay:", "").trim();
+      replayBanner.style.display = "flex";
+      const bannerText = document.getElementById("replayBannerText");
+      if (bannerText) bannerText.textContent = `REPLAY — ${faultName.toUpperCase()}`;
+    } else {
+      replayBanner.style.display = "none";
+    }
+  }
+
   const f=computeFaults(latest,history);
   let modeName = prediction ? prediction['Operating Mode'] : ({0:'IDLE',1:'ACCEL',2:'CRUISE',3:'DECEL'}[latest.driving_mode]||'IDLE');
   const curVal = parseFloat(latest.current);
@@ -1991,11 +2050,94 @@ async function poll(){
 }
 
 // ─────────────────────────────────────────────
+//  SERVER-SIDE EMAIL ALERT DISPATCH & TEST
+// ─────────────────────────────────────────────
+async function triggerTestEmail() {
+  const btn = document.getElementById('btnTestEmail');
+  const statusEl = document.getElementById('testEmailStatus');
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = 'Sending...';
+  }
+  if (statusEl) {
+    statusEl.textContent = 'Contacting SMTP server...';
+    statusEl.style.color = '#5B5470';
+  }
+  
+  try {
+    const res = await fetch('/api/alerts/test', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({})
+    });
+    const data = await res.json();
+    if (data.status === 'success') {
+      if (statusEl) {
+        statusEl.textContent = '✅ ' + (data.message || 'Email sent!');
+        statusEl.style.color = '#5A9670';
+      }
+    } else {
+      if (statusEl) {
+        statusEl.textContent = '❌ ' + (data.message || 'Failed to send test email');
+        statusEl.style.color = '#B05656';
+      }
+    }
+    fetchEmailAlertHistory();
+  } catch (err) {
+    if (statusEl) {
+      statusEl.textContent = '❌ Error: ' + err.message;
+      statusEl.style.color = '#B05656';
+    }
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = '✉️ Send Test Email';
+    }
+  }
+}
+
+async function fetchEmailAlertHistory() {
+  try {
+    const res = await fetch('/api/alerts/email-history');
+    if (!res.ok) return;
+    const data = await res.json();
+    const list = data.history || [];
+    const tbody = document.getElementById('emailAlertHistoryBody');
+    if (!tbody) return;
+    if (list.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; color:#9B92AE; padding:15px; font-size:12px;">No email dispatches recorded yet.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = list.map(item => {
+      const isSent = item.status === 'SENT';
+      const isSuppressed = item.status.includes('SUPPRESSED');
+      const badgeBg = isSent ? '#E0F2E5' : (isSuppressed ? '#EAE8EF' : '#FBE0E0');
+      const badgeColor = isSent ? '#5A9670' : (isSuppressed ? '#8D81B8' : '#B05656');
+      const sevColor = item.severity === 'CRITICAL' ? '#B05656' : (item.severity === 'WARNING' ? '#A8853D' : '#5A9670');
+      const sevBg = item.severity === 'CRITICAL' ? '#FBE0E0' : (item.severity === 'WARNING' ? '#FBF0D6' : '#E0F2E5');
+
+      return `
+        <tr>
+          <td style="padding: 6px 8px; border-bottom: 1px solid #F0EBF8; font-variant-numeric: tabular-nums;">${item.timestamp}</td>
+          <td style="padding: 6px 8px; border-bottom: 1px solid #F0EBF8; font-weight:700;">${item.fault_class}</td>
+          <td style="padding: 6px 8px; border-bottom: 1px solid #F0EBF8;"><span style="font-size:9px; font-weight:800; padding:2px 5px; border-radius:4px; background:${sevBg}; color:${sevColor};">${item.severity}</span></td>
+          <td style="padding: 6px 8px; border-bottom: 1px solid #F0EBF8;">${item.confidence}</td>
+          <td style="padding: 6px 8px; border-bottom: 1px solid #F0EBF8; font-size:11px; color:#5B5470;">${item.recipient}</td>
+          <td style="padding: 6px 8px; border-bottom: 1px solid #F0EBF8;"><span style="font-size:10px; font-weight:700; padding:2px 6px; border-radius:4px; background:${badgeBg}; color:${badgeColor};">${item.status}</span></td>
+        </tr>
+      `;
+    }).join('');
+  } catch(e) {}
+}
+
+// ─────────────────────────────────────────────
 //  INIT
 // ─────────────────────────────────────────────
 initTrend();
 poll();
+fetchEmailAlertHistory();
 setInterval(poll, 1000);
+setInterval(fetchEmailAlertHistory, 5000);
 </script>
 </body>
 </html>
