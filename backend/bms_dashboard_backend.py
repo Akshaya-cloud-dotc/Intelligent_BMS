@@ -16,9 +16,11 @@ def get_now_str():
 from flask import Flask, request, jsonify, send_from_directory, send_file
 import json
 
-# Ensure the model directory is in path
+# Ensure the model directory and root directory are in path
 MODEL_DIR = os.path.dirname(os.path.abspath(__file__))
+ROOT_DIR = os.path.dirname(MODEL_DIR)
 sys.path.append(MODEL_DIR)
+sys.path.append(ROOT_DIR)
 
 from predict_fault import run_inference, init_ml_model
 import datasheet_parser
@@ -2589,8 +2591,10 @@ def api_soh_rul():
         if not req_data:
             req_data = {}
             
-        with lock:
-            cyc = int(req_data.get("cycle_index", cycle_state.get("cycle_count", 1)))
+        with cycle_lock:
+            history = load_cycle_history()
+            default_cyc = max(1, len(history))
+            cyc = int(req_data.get("cycle_index", default_cyc))
             r_int = float(req_data.get("r_int_mohm", 30.0 + 0.025 * cyc))
             
         res = predict_battery_health(
