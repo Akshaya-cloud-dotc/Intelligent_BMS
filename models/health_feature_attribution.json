@@ -1,0 +1,60 @@
+{
+  "features": [
+    {
+      "feature": "dq_dv_peak",
+      "importance": 0.9914,
+      "percentage": 99.14
+    },
+    {
+      "feature": "delta_v_cycle",
+      "importance": 0.0025,
+      "percentage": 0.25
+    },
+    {
+      "feature": "cycle_index",
+      "importance": 0.0022,
+      "percentage": 0.22
+    },
+    {
+      "feature": "r_int_mohm",
+      "importance": 0.0018,
+      "percentage": 0.18
+    },
+    {
+      "feature": "r_int_growth_ratio",
+      "importance": 0.0012,
+      "percentage": 0.12
+    },
+    {
+      "feature": "v_drop_1c",
+      "importance": 0.0005,
+      "percentage": 0.05
+    },
+    {
+      "feature": "temp_ambient_c",
+      "importance": 0.0003,
+      "percentage": 0.03
+    },
+    {
+      "feature": "c_rate",
+      "importance": 0.0001,
+      "percentage": 0.01
+    },
+    {
+      "feature": "coulombic_efficiency",
+      "importance": 0.0,
+      "percentage": 0.0
+    }
+  ],
+  "metrics": {
+    "soh_mae": 0.701,
+    "soh_rmse": 0.849,
+    "soh_r2": 0.996,
+    "rul_mae": 31.1,
+    "rul_rmse": 56.1,
+    "rul_r2": 0.2832,
+    "uncertainty_coverage_pct": 93.84,
+    "baseline_soh_mae": 12.689,
+    "baseline_rul_mae": 194.6
+  }
+}

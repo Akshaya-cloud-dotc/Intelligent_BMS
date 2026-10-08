@@ -16,6 +16,7 @@ import os
 import sys
 import time
 import json
+import subprocess
 import webbrowser
 import urllib.request
 import urllib.error
@@ -26,6 +27,37 @@ from dotenv import load_dotenv
 
 project_root = os.path.dirname(os.path.abspath(__file__))
 load_dotenv(os.path.join(project_root, ".env"))
+
+# ── Auto-launch Mail Dispatch Monitor in a separate terminal window ─────────────
+def _launch_mail_dispatcher():
+    dispatcher_script = os.path.join(project_root, "mail_dispatcher.py")
+    if not os.path.exists(dispatcher_script):
+        print("[DEMO] mail_dispatcher.py not found, skipping.")
+        return
+    try:
+        if sys.platform == "win32":
+            dispatcher_bat = os.path.join(project_root, "mail_dispatcher.bat")
+            if os.path.exists(dispatcher_bat):
+                cmd = f'start "" "{dispatcher_bat}"'
+            else:
+                cmd = f'start "AI-PBMS Mail Dispatcher" cmd /k "python mail_dispatcher.py"'
+            subprocess.Popen(cmd, shell=True, cwd=project_root)
+        else:
+            for term in ["lxterminal", "x-terminal-emulator", "xterm", "gnome-terminal"]:
+                try:
+                    subprocess.Popen(
+                        [term, "--title=AI-PBMS Mail Dispatcher",
+                         "-e", f"python3 {dispatcher_script}"],
+                        cwd=project_root
+                    )
+                    break
+                except FileNotFoundError:
+                    continue
+        print("[DEMO] Mail Dispatch Monitor launched in a separate window.")
+    except Exception as e:
+        print(f"[DEMO] Could not open Mail Dispatcher terminal: {e}")
+
+_launch_mail_dispatcher()
 
 # ==============================================================================
 # CONFIGURATION
@@ -230,60 +262,77 @@ def prepare_replay_rows(choice: int) -> tuple[str, list[dict]]:
 
 
 def post_row(payload: dict) -> bool:
-    """POSTs a single row to INGEST_URL using INGEST_TOKEN."""
-    global _BROWSER_OPENED
-    try:
-        # Refresh timestamp on outgoing transmission
-        payload["timestamp"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        req_data = json.dumps(payload).encode("utf-8")
-        headers = {
-            "Content-Type": "application/json",
-            "X-Ingest-Token": INGEST_TOKEN
-        }
-        req = urllib.request.Request(INGEST_URL, data=req_data, headers=headers)
-        with urllib.request.urlopen(req, timeout=3.0) as resp:
-            result = json.loads(resp.read().decode("utf-8"))
+    """POSTs a single row to INGEST_URL, with automatic localhost:5000 fallback."""
+    global _BROWSER_OPENED, INGEST_URL, DASHBOARD_URL
+    payload["timestamp"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    req_data = json.dumps(payload).encode("utf-8")
+    headers = {
+        "Content-Type": "application/json",
+        "X-Ingest-Token": INGEST_TOKEN
+    }
+    
+    # Try primary INGEST_URL first, then fallback to local backend if unreachable/404
+    candidate_urls = [INGEST_URL]
+    local_url = "http://localhost:5000/api/telemetry"
+    if INGEST_URL != local_url:
+        candidate_urls.append(local_url)
+        
+    for target_url in candidate_urls:
+        try:
+            req = urllib.request.Request(target_url, data=req_data, headers=headers)
+            with urllib.request.urlopen(req, timeout=3.0) as resp:
+                result = json.loads(resp.read().decode("utf-8"))
+                
+                # If we succeeded on a fallback URL, update active target
+                if target_url != INGEST_URL:
+                    INGEST_URL = local_url
+                    DASHBOARD_URL = "http://localhost:5000/live-monitor"
+                
+                # Open browser once first row is confirmed
+                if not _BROWSER_OPENED:
+                    _BROWSER_OPENED = True
+                    print(f"[REPLAY] Confirmed connection! Opening dashboard: {DASHBOARD_URL}")
+                    try:
+                        webbrowser.open(DASHBOARD_URL)
+                    except Exception:
+                        pass
+
+                # Local email alerting for replay faults
+                if evaluate_and_enqueue_alert:
+                    try:
+                        f_type = payload.get("fault_type", "Normal")
+                        if f_type and f_type not in ["Normal", "Normal Operation", "—", ""]:
+                            is_risk = "Risk" in f_type
+                            sev = "WARNING" if is_risk else "CRITICAL"
+                            evaluate_and_enqueue_alert(
+                                row=payload,
+                                prediction=None,
+                                live_prediction={
+                                    "condition": f_type,
+                                    "severity": sev,
+                                    "confidence": "85.0%" if is_risk else "99.5%",
+                                    "reason": f"Active dynamic fault: {f_type}"
+                                },
+                                recent_rows=list(_RECENT_ROWS)
+                            )
+                    except Exception:
+                        pass
+
+                return True
+        except urllib.error.HTTPError as he:
+            if he.code == 401:
+                print(f"\n[ERROR] 401 Unauthorized: Ingest token rejected by {target_url}!")
+                return False
+            # If 404 on cloud, continue to next candidate
+            if he.code == 404 and target_url != candidate_urls[-1]:
+                continue
+            print(f"\n[HTTP Error {he.code}] on {target_url}: {he.reason}")
+        except Exception as e:
+            if target_url != candidate_urls[-1]:
+                continue
+            print(f"\n[Error POSTing telemetry to {target_url}] {e}")
             
-            # Open browser once first row is confirmed
-            if not _BROWSER_OPENED:
-                _BROWSER_OPENED = True
-                print(f"[REPLAY] Confirmed connection! Opening dashboard: {DASHBOARD_URL}")
-                try:
-                    webbrowser.open(DASHBOARD_URL)
-                except Exception:
-                    pass
-
-            # Local email alerting for replay faults (direct to akshayavg1@gmail.com)
-            if evaluate_and_enqueue_alert:
-                try:
-                    f_type = payload.get("fault_type", "Normal")
-                    if f_type and f_type not in ["Normal", "Normal Operation", "—", ""]:
-                        is_risk = "Risk" in f_type
-                        sev = "WARNING" if is_risk else "CRITICAL"
-                        evaluate_and_enqueue_alert(
-                            row=payload,
-                            prediction=None,
-                            live_prediction={
-                                "condition": f_type,
-                                "severity": sev,
-                                "confidence": "85.0%" if is_risk else "99.5%",
-                                "reason": f"Active dynamic fault: {f_type}"
-                            },
-                            recent_rows=list(_RECENT_ROWS)
-                        )
-                except Exception:
-                    pass
-
-            return True
-    except urllib.error.HTTPError as he:
-        if he.code == 401:
-            print(f"\n[ERROR] 401 Unauthorized: Ingest token rejected by {INGEST_URL}!")
-            return False
-        print(f"\n[HTTP Error {he.code}] {he.reason}")
-        return False
-    except Exception as e:
-        print(f"\n[Error POSTing telemetry] {e}")
-        return False
+    return False
 
 
 def run_replay(fault_name: str, rows: list[dict]):

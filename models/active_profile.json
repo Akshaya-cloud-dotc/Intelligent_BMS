@@ -1,10 +1,28 @@
 {
     "chemistry_name": "LG Energy Solution INR21700 M50 (Li-ion NMC)",
+    "cell_model": "INR21700-M50",
+    "pack_configuration": "8S2P",
+    "nominal_cell_voltage": 3.63,
+    "nominal_cell_capacity_ah": 5.0,
+    "pack_nominal_voltage": 29.04,
+    "pack_nominal_capacity_ah": 10.0,
+    "pack_nominal_energy_wh": 290.4,
+    "eol_soh_threshold_percent": 80.0,
     "thresholds": {
-        "v_max": 4.2,
-        "v_min": 2.5,
-        "temp_max": -20.0,
-        "i_max_discharge": 7.275,
-        "i_max_charge": 0.05
+        "v_max": 4.20,
+        "v_min": 2.50,
+        "v_warn_max": 4.15,
+        "v_warn_min": 2.80,
+        "temp_max": 60.0,
+        "temp_min": -20.0,
+        "temp_charge_max": 45.0,
+        "temp_charge_min": 0.0,
+        "temp_warn_max": 48.0,
+        "i_max_discharge_continuous": 9.70,
+        "i_max_discharge_peak": 14.55,
+        "i_max_charge": 4.85,
+        "i_charge_standard": 2.425,
+        "delta_v_warn": 0.080,
+        "delta_v_crit": 0.150
     }
 }

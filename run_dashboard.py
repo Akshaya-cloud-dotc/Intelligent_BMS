@@ -22,6 +22,7 @@ import asyncio
 import webbrowser
 import urllib.request
 import urllib.error
+import subprocess
 from datetime import datetime
 
 # Load environment variables from .env
@@ -29,6 +30,36 @@ from dotenv import load_dotenv
 
 project_root = os.path.dirname(os.path.abspath(__file__))
 load_dotenv(os.path.join(project_root, ".env"))
+
+# ── Auto-launch Mail Dispatch Monitor in a separate terminal window ─────────────
+def _launch_mail_dispatcher():
+    dispatcher_script = os.path.join(project_root, "mail_dispatcher.py")
+    if not os.path.exists(dispatcher_script):
+        return
+    try:
+        if sys.platform == "win32":
+            dispatcher_bat = os.path.join(project_root, "mail_dispatcher.bat")
+            if os.path.exists(dispatcher_bat):
+                cmd = f'start "" "{dispatcher_bat}"'
+            else:
+                cmd = f'start "AI-PBMS Mail Dispatcher" cmd /k "python mail_dispatcher.py"'
+            subprocess.Popen(cmd, shell=True, cwd=project_root)
+        else:
+            for term in ["lxterminal", "x-terminal-emulator", "xterm", "gnome-terminal"]:
+                try:
+                    subprocess.Popen(
+                        [term, "--title=AI-PBMS Mail Dispatcher",
+                         "-e", f"python3 {dispatcher_script}"],
+                        cwd=project_root
+                    )
+                    break
+                except FileNotFoundError:
+                    continue
+        print("[LIVE] Mail Dispatch Monitor launched in a separate window.")
+    except Exception as e:
+        print(f"[LIVE] Could not open Mail Dispatcher terminal: {e}")
+
+_launch_mail_dispatcher()
 
 # Add backend to module path for gateway imports
 backend_dir = os.path.join(project_root, "backend")

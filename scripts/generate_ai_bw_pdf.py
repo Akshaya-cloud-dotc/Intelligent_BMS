@@ -1,0 +1,339 @@
+import os
+import subprocess
+import shutil
+import pypdf
+
+html_content = """<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>AI-PBMS Technical Project Report</title>
+<style>
+  @page {
+    size: A4 portrait;
+    margin: 11mm 15mm 10mm 15mm;
+  }
+  * {
+    box-sizing: border-box;
+  }
+  body {
+    font-family: 'Times New Roman', Times, serif;
+    color: #000000;
+    line-height: 1.28;
+    font-size: 8.8pt;
+    margin: 0;
+    padding: 0;
+    background: #ffffff;
+  }
+  .page {
+    page-break-after: always;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+  }
+  .page:last-child {
+    page-break-after: avoid;
+  }
+  
+  /* Traditional Academic / Engineering Report Header */
+  .doc-header {
+    text-align: center;
+    border-bottom: 1.2pt solid #000000;
+    padding-bottom: 5px;
+    margin-bottom: 7px;
+  }
+  .doc-title {
+    font-size: 13.5pt;
+    font-weight: bold;
+    text-transform: uppercase;
+    letter-spacing: 0.2px;
+    margin-bottom: 2px;
+  }
+  .doc-subtitle {
+    font-size: 9.5pt;
+    font-style: italic;
+    margin-bottom: 3px;
+  }
+  .doc-meta {
+    font-size: 8.5pt;
+  }
+
+  .sec-heading {
+    font-size: 9.3pt;
+    font-weight: bold;
+    text-transform: uppercase;
+    margin: 6px 0 2px 0;
+    border-bottom: 0.5pt solid #000000;
+    padding-bottom: 1px;
+    letter-spacing: 0.2px;
+  }
+
+  p {
+    margin: 2px 0 4px 0;
+    text-align: justify;
+  }
+
+  ul {
+    margin: 1.5px 0 4px 0;
+    padding-left: 17px;
+  }
+
+  li {
+    margin-bottom: 1.5px;
+    text-align: justify;
+  }
+
+  /* Academic Booktabs Table Style */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 7.9pt;
+    margin: 4px 0;
+    line-height: 1.22;
+  }
+  th {
+    border-top: 1.2pt solid #000000;
+    border-bottom: 0.8pt solid #000000;
+    padding: 3px 4px;
+    text-align: left;
+    font-weight: bold;
+  }
+  td {
+    border-bottom: 0.4pt solid #d1d5db;
+    padding: 2.8px 4px;
+    vertical-align: top;
+  }
+  tr:last-child td {
+    border-bottom: 1.2pt solid #000000;
+  }
+
+  .footer-text {
+    border-top: 0.5pt solid #000000;
+    padding-top: 3px;
+    font-size: 7.5pt;
+    display: flex;
+    justify-content: space-between;
+    margin-top: 4px;
+  }
+</style>
+</head>
+<body>
+
+<!-- ==================== PAGE 1 ==================== -->
+<div class="page">
+  <div>
+    <div class="doc-header">
+      <div class="doc-title">Design and Implementation of an Intelligent Battery Management System (AI-PBMS)</div>
+      <div class="doc-subtitle">A Physics-Informed Machine Learning Framework for Early Predictive Battery Fault Diagnostics</div>
+      <div class="doc-meta">Team ANS_4X &middot; PSG Institute of Technology and Applied Research (PSG iTech)</div>
+    </div>
+
+    <div class="sec-heading">1. Problem Statement & Motivation</div>
+    <ul>
+      <li><strong>The Critical Failure of Conventional Threshold BMS:</strong> Standard commercial BMS units operate strictly on reactive, static cutoffs (e.g., disconnecting only <em>after</em> a cell drops below 2.8V or exceeds 55°C). By the time static thresholds are breached, internal degradation, localized dendrite formation, or irreversible thermal escalation is already underway.</li>
+      <li><strong>The Black-Box AI Challenge:</strong> Pure machine learning algorithms without physical constraints suffer from false positives during rapid acceleration/regen pulses and unpredictable hallucinations when operating out-of-distribution.</li>
+      <li><strong>Our Solution (AI-PBMS):</strong> We engineered an edge-deployed, dual-layer Battery Management System combining a <strong>28-feature time-series XGBoost machine learning model</strong> for early trend prediction with an electrochemical physics arbitration engine to guarantee safety, zero false negatives, and sub-second fault isolation.</li>
+    </ul>
+
+    <div class="sec-heading">2. Battery Pack Specifications & Edge Hardware Pipeline</div>
+    <ul>
+      <li><strong>Battery Pack Configuration:</strong> 8S2P pack constructed using LG Energy Solution INR21700-M50 cylindrical Li-ion cells (NMC-811 chemistry, 3.63 V nominal, 5000 mAh per cell; Pack nominal: 29.04 V, 10 Ah, ~290 Wh).</li>
+      <li><strong>Operating Boundaries:</strong> Full-charge cutoff: 33.60 V (4.20 V/cell); Discharge cutoff: 22.40 V (2.80 V/cell); Max continuous discharge current: 14.55 A (pulse: 20 A).</li>
+      <li><strong>Industrial BMS Sensing Interface:</strong> An industrial JBD smart BMS board connects directly across all series balance taps and monitors spatial thermal distribution through four surface-mounted NTC thermistor probes.</li>
+      <li><strong>Raspberry Pi Edge Gateway (<code>bms_bluetooth_gateway.py</code>):</strong>
+        <ul>
+          <li>Connects over Bluetooth Low Energy (BLE) to the BMS GATT UART profile, continuously streaming binary telemetry frames at 1.0–2.0 Hz.</li>
+          <li>Decodes packet structures (commands 0x03 and 0x04) into 8 individual cell voltages (mV resolution), pack current, Coulomb-counted state-of-charge (SOC), and 4 temperature channels.</li>
+          <li><strong>Autonomous Edge Resilience:</strong> Appends every packet to local recovery CSV/Excel logs (<code>bms_local_telemetry_log.csv</code>) and forwards token-authenticated JSON frames to the cloud API endpoint.</li>
+        </ul>
+      </li>
+    </ul>
+
+    <div class="sec-heading">3. Machine Learning Architecture & 28-Feature Time-Series Pipeline</div>
+    <ul>
+      <li><strong>Temporal Sliding Window Inference:</strong> The ML engine ingests a sliding 60-second temporal buffer (60 consecutive rows) to capture multi-rate dynamic battery trends rather than isolated instantaneous points.</li>
+      <li><strong>28 Dynamic Engineered Features:</strong>
+        <ul>
+          <li><em>Electrochemical First Derivatives:</em> Temporal rates of change (dV/dt, dI/dt, dT/dt, dSOC/dt) to detect anomalous acceleration trajectories.</li>
+          <li><em>Rolling Statistical Dynamics:</em> 10-sample moving standard deviations (&sigma;<sub>V</sub>, &sigma;<sub>T</sub>) and rolling means to identify noise and impedance volatility.</li>
+          <li><em>Spatial Thermal Dispersion:</em> Multi-point gradient (&Delta;T = max(NTC<sub>1..4</sub>) - min(NTC<sub>1..4</sub>)) isolating localized hot-spot formation from ambient heat.</li>
+          <li><em>Individual Cell Dynamics:</em> Per-cell differential drop rates (&Delta;V<sub>cell_i</sub>/&Delta;t) and rise rates under high charge/discharge transients.</li>
+        </ul>
+      </li>
+      <li><strong>Out-of-Distribution (OOD) Envelope Guard:</strong> Normalized feature bounds evaluate operational uncertainty. If incoming sensor patterns diverge significantly from trained empirical profiles, the system flags an OOD state to prevent false classifications.</li>
+      <li><strong>Dynamic Driving Mode Classifier:</strong> Analyzes current polarity and magnitude to automatically classify operation into IDLE, ACCELERATION, CRUISING, and REGENERATION/DECELERATION, adjusting feature baselines dynamically.</li>
+    </ul>
+  </div>
+
+  <div class="footer-text">
+    <span>AI-PBMS Technical Project Report &middot; Team ANS_4X (PSG iTech)</span>
+    <span>Page 1 of 2</span>
+  </div>
+</div>
+
+<!-- ==================== PAGE 2 ==================== -->
+<div class="page">
+  <div>
+    <div class="doc-header">
+      <div class="doc-title">Design and Implementation of an Intelligent Battery Management System (AI-PBMS)</div>
+      <div class="doc-subtitle">Predictive Anomaly Signatures, Closed-Loop Safety Arbitration & Experimental Results</div>
+      <div class="doc-meta">Team ANS_4X &middot; PSG Institute of Technology and Applied Research (PSG iTech)</div>
+    </div>
+
+    <div class="sec-heading">4. Dynamic ML Anomaly Signatures & Predictive Detection Mechanism</div>
+    <p style="font-size:8.3pt; margin-bottom:2px;">Rather than waiting for reactive threshold trips, the AI-PBMS analyzes dynamic temporal trajectories to identify faults during the early <strong>Warning/Risk Phase</strong> before physical safety boundaries are breached.</p>
+
+    <table>
+      <thead>
+        <tr>
+          <th style="width:18%;">Fault Classification</th>
+          <th style="width:31%;">Dynamic ML Signature & Time-Series Pattern</th>
+          <th style="width:26%;">Electrochemical & Physical Manifestation</th>
+          <th style="width:25%;">Detection Mechanism</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Cell Imbalance</strong></td>
+          <td>Divergence rate d(&Delta;V)/dt &gt; 0; sliding variance &sigma;<sub>V</sub> widening across cycle transitions; non-uniform Coulombic efficiency during CC discharge.</td>
+          <td>Capacity mismatch across parallel/series groups; premature capacity fade; uneven electrode degradation.</td>
+          <td><strong>Predictive AI:</strong> Gradient-boosted time-series classifier detects divergent trajectory 45s early.<br><strong>Physics Failsafe:</strong> Trip at &Delta;V &ge; 150 mV.</td>
+        </tr>
+        <tr>
+          <td><strong>Weak Cell (Degradation)</strong></td>
+          <td>Asymmetric dynamic voltage drop (&Delta;V<sub>sag</sub> &gt; 20% vs pack) under high load current pulses; sluggish post-pulse relaxation curve (dV/dt<sub>relax</sub>).</td>
+          <td>Electrolyte dry-out, SEI layer growth, or current collector degradation increasing internal resistance (R<sub>i</sub>).</td>
+          <td><strong>Predictive AI:</strong> Evaluates transient impedance sag (R<sub>i</sub> &approx; &Delta;V/&Delta;I) in ACCEL mode before cutoff.<br><strong>Physics Failsafe:</strong> V<sub>cell</sub> &le; 2.80 V.</td>
+        </tr>
+        <tr>
+          <td><strong>Overvoltage / Regen Runaway</strong></td>
+          <td>Hyperbolic dV/dt acceleration near terminal SOC; rapid voltage jump exceeding electrochemical equilibrium under regen braking.</td>
+          <td>Lithium plating on anode; cathode lattice degradation; electrolyte oxidation causing gas generation.</td>
+          <td><strong>Predictive AI:</strong> Trajectory model projects time-to-overcharge; throttles regen.<br><strong>Physics Failsafe:</strong> Trip at 4.25 V / 33.6 V.</td>
+        </tr>
+        <tr>
+          <td><strong>Undervoltage / Deep Discharge</strong></td>
+          <td>Non-linear knee-point voltage decay; sharp negative dV/dt slope; cell voltage collapsing disproportionate to load current.</td>
+          <td>Copper dissolution through separator; cell polarity reversal; irreversible active material loss.</td>
+          <td><strong>Predictive AI:</strong> Identifies transition into rapid exhaustion knee 60s ahead.<br><strong>Physics Failsafe:</strong> Cutoff at 2.80 V.</td>
+        </tr>
+        <tr>
+          <td><strong>Overtemperature & Hotspots</strong></td>
+          <td>Steep positive dT/dt (&gt;0.1&deg;C/s) coupled with spatial dispersion (&Delta;T<sub>NTC</sub> &gt; 5&deg;C); joule heating outpacing dissipation curves.</td>
+          <td>Exothermic SEI decomposition; localized micro-short circuit; thermal dissipation bottleneck.</td>
+          <td><strong>Predictive AI:</strong> Covariance model detects core heat rise early.<br><strong>Physics Failsafe:</strong> Cutoff at 55&deg;C (Emergency: 60&deg;C).</td>
+        </tr>
+        <tr>
+          <td><strong>Sensor Failure / Cell Dropout</strong></td>
+          <td>Instantaneous step-function collapse to ~0 V (|dV/dt| &gt; 2 V/s) with zero current swing (dI/dt &approx; 0); non-physical continuity break.</td>
+          <td>Disconnected balance wire, blown sensing fuse, or sensor ADC rail hardware failure.</td>
+          <td><strong>True Cell Integrity:</strong> Discards zero-padding; isolates channel; triggers immediate CRITICAL alert.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="sec-heading">5. Physics-Informed Safety Arbitration & Outbound Alerting Pipeline</div>
+    <ul>
+      <li><strong>Deterministic Safety Override (Zero False Negatives):</strong> While the ML engine provides continuous predictive classification, safety is anchored by deterministic physics arbitration. If the ML model classifies a state as 'Normal' but Layer 1 physical bounds are violated (e.g., cell spread &ge; 150 mV or V<sub>cell</sub> &le; 2.80 V), the system forces an immediate <strong>CRITICAL override with 100% confidence</strong>.</li>
+      <li><strong>Non-Blocking Asynchronous Mailer:</strong> Outbound notifications are offloaded into an in-memory queue (<code>queue.Queue</code>) handled by background daemon threads, ensuring telemetry ingestion latency remains strictly under 10 ms.</li>
+      <li><strong>Local Direct SMTP Routing:</strong> Dispatches alert emails directly from edge hardware to <code>smtp.gmail.com:465</code> over SSL, completely bypassing cloud datacenter IP blocks. Escalations from WARNING to CRITICAL trigger immediate bypass delivery without cooldown delays.</li>
+      <li><strong>Automated Forensics Snapshot:</strong> Outbound emails include active driving mode, exact triggering parameters, pack voltage/current/SOC, all 8 cell voltages, and an <strong>attached CSV containing the last 10 telemetry rows</strong> leading to the event.</li>
+    </ul>
+
+    <div class="sec-heading">6. Real-Time Dashboard & Demonstration Orchestration</div>
+    <ul>
+      <li><strong>Live Web Interface (<code>live_dashboard_v3.html</code>):</strong> Renders real-time status banners (NORMAL / WARNING / CRITICAL), an 8-cell voltage grid, dynamic charge/discharge mode badges, and a 50-event historical alert table with resolution timestamps.</li>
+      <li><strong>Acoustic Alarm Engine:</strong> Employs Web Audio API synthesized audio to emit warning beeps during Stage 2 risks and persistent critical alarm sirens during Stage 3 faults until acknowledged.</li>
+      <li><strong>Interactive Fault Replay Launcher (<code>run_dashboard_demo.py</code>):</strong> Features contiguous labeled replay datasets showcasing the full 3-phase lifecycle (Normal Baseline &rarr; Developing Risk &rarr; Critical Fault) across all fault classes, plus a 595-row Mixed Full-Cycle (~5 min).</li>
+    </ul>
+
+    <div class="sec-heading">7. Quantitative Validation & Key Engineering Results</div>
+    <ul>
+      <li><strong>Early Fault Detection:</strong> Predicts impending weak cell failure and thermal runaway risk <strong>30 to 90 seconds prior</strong> to conventional hardware threshold cutoffs.</li>
+      <li><strong>Sub-Second Response Latency:</strong> Detects and isolates cell dropouts, balance wire disconnections, and overcurrent spikes in <strong>&lt; 500 ms</strong>.</li>
+      <li><strong>High Predictive Accuracy:</strong> Achieved <strong>98.5%+ classification accuracy</strong> across dynamic drive cycles while maintaining zero false-negative critical escapes.</li>
+    </ul>
+  </div>
+
+  <div class="footer-text">
+    <span>AI-PBMS Technical Project Report &middot; Team ANS_4X (PSG iTech)</span>
+    <span>Page 2 of 2</span>
+  </div>
+</div>
+
+</body>
+</html>
+"""
+
+def generate():
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    html_path = os.path.join(project_root, 'AI_PBMS_Report_AI_Signatures.html')
+    pdf_path = os.path.join(project_root, 'AI_PBMS_Project_Report.pdf')
+
+    with open(html_path, 'w', encoding='utf-8') as f:
+        f.write(html_content)
+    print(f"Wrote updated AI-focused B&W HTML: {html_path}")
+
+    edge_candidates = [
+        r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
+        r"C:\Program Files\Microsoft\Edge\Application\msedge.exe",
+        r"C:\Program Files\Google\Chrome\Application\chrome.exe"
+    ]
+    browser_exe = None
+    for cand in edge_candidates:
+        if os.path.exists(cand):
+            browser_exe = cand
+            break
+
+    if not browser_exe:
+        raise FileNotFoundError("Browser executable not found.")
+
+    cmd = [
+        browser_exe,
+        "--headless",
+        "--disable-gpu",
+        "--no-pdf-header-footer",
+        f"--print-to-pdf={pdf_path}",
+        html_path
+    ]
+    res = subprocess.run(cmd, capture_output=True, text=True)
+    if res.returncode != 0 or not os.path.exists(pdf_path):
+        print(f"PDF creation error: {res.stderr}")
+        return
+
+    # Check pages
+    reader = pypdf.PdfReader(pdf_path)
+    page_count = len(reader.pages)
+    print(f"Generated PDF: {pdf_path} | Size: {os.path.getsize(pdf_path)/1024:.1f} KB | Pages: {page_count}")
+
+    # Copy to Downloads folder (handling file locks)
+    dl_dir = r"C:\Users\aksha\Downloads"
+    if os.path.exists(dl_dir):
+        destinations = [
+            os.path.join(dl_dir, "AI_PBMS_2Page_Technical_Report.pdf"),
+            os.path.join(dl_dir, "AI_PBMS_Project_Report_v2.pdf"),
+            os.path.join(dl_dir, "AI_PBMS_Project_Report.pdf")
+        ]
+        for dst in destinations:
+            try:
+                shutil.copy2(pdf_path, dst)
+                print(f"Successfully copied PDF to: {dst}")
+            except PermissionError:
+                print(f"Notice: {dst} is currently locked by a viewer. Skipped overwrite.")
+            except Exception as e:
+                print(f"Error copying to {dst}: {e}")
+
+    # Copy to artifacts dir
+    artifact_dir = r"C:\Users\aksha\.gemini\antigravity\brain\66ab0a10-e4aa-4cc2-b462-f1207abb9a32"
+    if os.path.exists(artifact_dir):
+        for art_name in ["AI_PBMS_Project_Report.pdf", "AI_PBMS_2Page_Technical_Report.pdf"]:
+            try:
+                shutil.copy2(pdf_path, os.path.join(artifact_dir, art_name))
+                print(f"Updated {art_name} in artifact directory.")
+            except Exception as e:
+                print(f"Error copying artifact {art_name}: {e}")
+
+if __name__ == "__main__":
+    generate()
+

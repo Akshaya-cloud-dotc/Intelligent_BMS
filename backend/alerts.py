@@ -298,11 +298,38 @@ def active_recipients(severity=None):
     if rows:
         if severity is None:
             return [r["email"] for r in rows]
-        # Include any recipient configured for WARNING or CRITICAL
-        return [r["email"] for r in rows]
-    # Fallback to configured admin email if database table is empty
-    default_email = os.getenv("ALERT_TO", os.getenv("SMTP_USER", "akshayavg1@gmail.com")).strip()
-    return [default_email] if default_email else []
+        
+        target_sev = str(severity).upper().strip()
+        matched = []
+        for r in rows:
+            r_email = r["email"].strip().replace("psgitecf.ac.in", "psgitech.ac.in")
+            r_sev = (r["min_severity"] or "CRITICAL").upper().strip()
+            if target_sev == "WARNING":
+                # Only include recipients designated specifically for WARNING
+                if r_sev == "WARNING" and r_email not in matched:
+                    matched.append(r_email)
+            elif target_sev == "CRITICAL":
+                # Include recipients designated for CRITICAL
+                if r_sev == "CRITICAL" and r_email not in matched:
+                    matched.append(r_email)
+        if matched:
+            return matched
+
+    # Fallback to env-configured severity routing
+    target_sev = str(severity).upper().strip() if severity else "CRITICAL"
+    if target_sev == "WARNING":
+        raw = os.getenv("ALERT_WARNING_TO", "akshayavg1@gmail.com")
+    elif target_sev == "CRITICAL":
+        raw = os.getenv("ALERT_CRITICAL_TO", "24e103@psgitech.ac.in, akshayavg1@psgitech.ac.in")
+    else:
+        raw = os.getenv("ALERT_TO", os.getenv("SMTP_USER", "akshayavg1@gmail.com"))
+
+    recipients = []
+    for x in raw.replace(";", ",").split(","):
+        cleaned = x.strip().replace("psgitecf.ac.in", "psgitech.ac.in")
+        if cleaned and cleaned not in recipients:
+            recipients.append(cleaned)
+    return recipients
 
 
 def add_recipient(email, name=None, min_severity="CRITICAL"):

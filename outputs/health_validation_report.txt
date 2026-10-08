@@ -1,0 +1,46 @@
+================================================================================
+AI-PBMS: State of Health (SoH) & Remaining Useful Life (RUL) Validation Report
+================================================================================
+Battery Chemistry : LG Energy Solution INR21700-M50 (Li-ion NMC)
+Pack Configuration: 8S2P Pack (29.04V Nominal, 10.0Ah, 290.4Wh)
+Dataset           : 72 Cells Electrochemical Aging Simulation (500+ Cycles each)
+Validation Method : 5-Fold Cell-Grouped Cross-Validation (Holdout Unseen Cells)
+================================================================================
+
+1. STATE OF HEALTH (SoH) ESTIMATION METRICS (UNSEEN CELLS)
+----------------------------------------------------------
+   AI SoH Regressor (Gradient Boosting):
+      - Mean Absolute Error (MAE) : 0.70 %
+      - Root Mean Squared Error   : 0.85 %
+      - Coefficient of Det. (R²)  : 0.9960
+   Baseline Comparison (Linear Cycle Fade):
+      - Linear Baseline MAE       : 12.69 %
+      - AI Improvement over Base  : 94.5 % Error Reduction
+
+2. REMAINING USEFUL LIFE (RUL) WITH UNCERTAINTY QUANTIFICATION
+---------------------------------------------------------------
+   AI Quantile Regressors (P10 Pessimistic, P50 Median, P90 Optimistic):
+      - P50 Median MAE            : 31.1 Cycles to 80% EOL
+      - P50 Root Mean Squared Error: 56.1 Cycles
+      - R² Score                  : 0.2832
+      - Empirical Coverage [P10-P90]: 93.8 % (Theoretical Target: 80.0%)
+      - Mean Uncertainty Width    : 34.8 Cycles
+   Baseline Comparison (Fixed 500-Cycle Datasheet Rule):
+      - Datasheet Rule MAE        : 194.6 Cycles
+      - AI Improvement over Base  : 84.0 % Error Reduction
+
+3. EXPLAINABLE AI (SHAP / FEATURE ATTRIBUTION RANKING)
+-------------------------------------------------------
+   dq_dv_peak                : 99.14% attribution
+   delta_v_cycle             :  0.25% attribution
+   cycle_index               :  0.22% attribution
+   r_int_mohm                :  0.18% attribution
+   r_int_growth_ratio        :  0.12% attribution
+   v_drop_1c                 :  0.05% attribution
+   temp_ambient_c            :  0.03% attribution
+   c_rate                    :  0.01% attribution
+   coulombic_efficiency      :  0.00% attribution
+
+================================================================================
+Generated and verified for AI-PBMS Battery Intelligence System.
+================================================================================

@@ -1,5 +1,5 @@
-Caterpillar Tech Challenge - AI-PBMS Training Report
-=====================================================
+AI-PBMS Battery Intelligence — Model Training & Validation Report
+==================================================================
 Model Architecture: Time-Series Transformer Encoder
 d_model: 64 | nhead: 4 | num_layers: 2 | dim_feedforward: 128
 Lookback Sequence: 60 rows

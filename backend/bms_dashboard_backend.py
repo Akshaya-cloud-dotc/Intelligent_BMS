@@ -2578,6 +2578,45 @@ def api_alerts_test():
         return jsonify(res)
     return jsonify({"status": "error", "message": "Mailer module not available"}), 500
 
+@app.route('/api/soh-rul', methods=['GET', 'POST', 'OPTIONS'])
+def api_soh_rul():
+    """Returns State of Health (SoH %) and RUL with P10-P90 uncertainty intervals."""
+    if request.method == 'OPTIONS':
+        return app.make_default_options_response()
+    try:
+        from predict_health import predict_battery_health
+        req_data = request.json if request.is_json else {}
+        if not req_data:
+            req_data = {}
+            
+        with lock:
+            cyc = int(req_data.get("cycle_index", cycle_state.get("cycle_count", 1)))
+            r_int = float(req_data.get("r_int_mohm", 30.0 + 0.025 * cyc))
+            
+        res = predict_battery_health(
+            cycle_index=cyc,
+            r_int_mohm=r_int,
+            dq_dv_peak=float(req_data.get("dq_dv_peak", 3.0)),
+            delta_v=float(req_data.get("delta_v", 0.015))
+        )
+        return jsonify({"status": "success", "data": res})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route('/api/explainability', methods=['GET', 'OPTIONS'])
+def api_explainability():
+    """Returns TreeSHAP feature attributions and baseline validation metrics."""
+    if request.method == 'OPTIONS':
+        return app.make_default_options_response()
+    try:
+        attrib_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "models", "health_feature_attribution.json")
+        if os.path.exists(attrib_path):
+            with open(attrib_path) as f:
+                return jsonify({"status": "success", "data": json.load(f)})
+        return jsonify({"status": "error", "message": "Feature attribution file not found"}), 404
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
 # ── React Configurator & PDF API Integration ──
 frontend_build_path = os.path.join(MODEL_DIR, "dist")
 

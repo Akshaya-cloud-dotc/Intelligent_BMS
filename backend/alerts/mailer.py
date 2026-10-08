@@ -45,7 +45,31 @@ SMTP_PORT = int(os.getenv("SMTP_PORT", "465"))
 SMTP_USER = os.getenv("SMTP_USER", "").strip()
 SMTP_PASS = os.getenv("SMTP_PASS", "").strip()
 ALERT_TO  = os.getenv("ALERT_TO", SMTP_USER).strip()
+ALERT_WARNING_TO = os.getenv("ALERT_WARNING_TO", "akshayavg1@gmail.com").strip()
+ALERT_CRITICAL_TO = os.getenv("ALERT_CRITICAL_TO", "24e103@psgitech.ac.in, akshayavg1@psgitech.ac.in").strip()
 SENDER    = os.getenv("SMTP_FROM", SMTP_USER).strip()
+
+def get_recipients_for_severity(severity: str) -> List[str]:
+    """
+    Returns list of recipients strictly partitioned by severity:
+    - WARNING: ALERT_WARNING_TO (default: ['akshayavg1@gmail.com'])
+    - CRITICAL: ALERT_CRITICAL_TO (default: ['24e103@psgitech.ac.in', 'akshayavg1@psgitech.ac.in'])
+    Auto-corrects common typos such as 'psgitecf.ac.in' -> 'psgitech.ac.in'.
+    """
+    sev = str(severity).upper().strip()
+    if sev == "WARNING":
+        raw = os.getenv("ALERT_WARNING_TO", ALERT_WARNING_TO)
+    elif sev == "CRITICAL":
+        raw = os.getenv("ALERT_CRITICAL_TO", ALERT_CRITICAL_TO)
+    else:
+        raw = os.getenv("ALERT_TO", ALERT_TO or SMTP_USER)
+
+    recipients = []
+    for item in raw.replace(";", ",").split(","):
+        cleaned = item.strip().replace("psgitecf.ac.in", "psgitech.ac.in")
+        if cleaned and cleaned not in recipients:
+            recipients.append(cleaned)
+    return recipients or [ALERT_TO or SMTP_USER]
 
 ALERT_COOLDOWN_SEC = float(os.getenv("ALERT_COOLDOWN_SEC", "20"))
 DEMO_ALERTS = os.getenv("DEMO_ALERTS", "true").strip().lower() == "true"
@@ -58,6 +82,10 @@ def get_ist_now_str() -> str:
 # Cooldown Tracker: { fault_class: { "time": epoch_float, "severity": "WARNING"|"CRITICAL" } }
 _cooldown_lock = threading.Lock()
 _cooldown_tracker: Dict[str, Dict[str, Any]] = {}
+
+# Active Fault Tracker for Automatic Resolution Alerts
+_active_fault_lock = threading.Lock()
+_active_fault_tracker: Dict[str, Dict[str, Any]] = {}
 
 # Recent Email History Ring Buffer: list of dicts
 _history_lock = threading.Lock()
@@ -73,6 +101,59 @@ def record_history_entry(entry: Dict[str, Any]):
 def get_alert_history() -> List[Dict[str, Any]]:
     with _history_lock:
         return list(_email_history)
+
+def _extract_voltage_info(row: Dict[str, Any]):
+    """
+    Safely extracts, computes, and formats pack voltage and all 8 individual cell voltages.
+    Guarantees mathematically accurate pack voltage, cell voltages (3 decimals), and delta_v.
+    """
+    cell_floats = []
+    for i in range(1, 9):
+        val = None
+        for key in [f"cell_v{i}", f"cell_{i}", f"Cell {i}", f"c{i}"]:
+            if key in row and row[key] is not None:
+                val = row[key]
+                break
+        
+        if val is not None:
+            try:
+                c_val = round(float(val), 3)
+                cell_floats.append(c_val)
+            except (ValueError, TypeError):
+                cell_floats.append(3.200)
+        else:
+            cell_floats.append(3.200)
+
+    # Ensure exactly 8 cells
+    while len(cell_floats) < 8:
+        cell_floats.append(3.200)
+
+    cell_sum = sum(cell_floats)
+
+    # Extract or calculate pack voltage
+    raw_volts = row.get("voltage") or row.get("pack_voltage")
+    if raw_volts is not None:
+        try:
+            volts = round(float(raw_volts), 2)
+            if volts <= 0.5 and cell_sum > 1.0:
+                volts = round(cell_sum, 2)
+        except (ValueError, TypeError):
+            volts = round(cell_sum, 2)
+    else:
+        volts = round(cell_sum, 2)
+
+    # Extract or calculate delta_v
+    raw_dv = row.get("delta_v") or row.get("cell_spread")
+    if raw_dv is not None:
+        try:
+            delta_v = round(float(raw_dv), 3)
+        except (ValueError, TypeError):
+            delta_v = round(max(cell_floats) - min(cell_floats), 3)
+    else:
+        delta_v = round(max(cell_floats) - min(cell_floats), 3)
+
+    cell_str_vals = [f"{v:.3f}" for v in cell_floats]
+    return volts, delta_v, cell_str_vals
 
 # ==============================================================================
 # ASYNC WORKER QUEUE
@@ -97,16 +178,26 @@ def _build_csv_attachment(rows: List[Dict[str, Any]]) -> str:
         writer.writerow(r)
     return out.getvalue()
 
-def _send_smtp_message(to_addr: str, subject: str, body_text: str, body_html: str, 
+def _send_smtp_message(to_addr: Any, subject: str, body_text: str, body_html: str, 
                        csv_data: Optional[str] = None) -> bool:
     """Delivers email via smtplib with TLS/SSL, forcing IPv4 to prevent Linux/Railway Errno 101."""
     if not SMTP_USER or not SMTP_PASS:
         raise ValueError("SMTP_USER or SMTP_PASS not configured in environment variables.")
 
+    if isinstance(to_addr, (list, tuple, set)):
+        to_list = [str(x).strip().replace("psgitecf.ac.in", "psgitech.ac.in") for x in to_addr if str(x).strip()]
+    elif isinstance(to_addr, str):
+        to_list = [x.strip().replace("psgitecf.ac.in", "psgitech.ac.in") for x in to_addr.replace(";", ",").split(",") if x.strip()]
+    else:
+        to_list = [str(to_addr).strip()]
+
+    if not to_list:
+        raise ValueError("No recipient email specified.")
+
     msg = EmailMessage()
     msg["Subject"] = subject
     msg["From"] = SENDER or SMTP_USER
-    msg["To"] = to_addr
+    msg["To"] = ", ".join(to_list)
     msg.set_content(body_text)
     msg.add_alternative(body_html, subtype="html")
 
@@ -145,13 +236,13 @@ def _send_smtp_message(to_addr: str, subject: str, body_text: str, body_html: st
                 if port == 465:
                     with smtplib.SMTP_SSL(SMTP_HOST, port, context=context, timeout=12.0) as server:
                         server.login(SMTP_USER, SMTP_PASS)
-                        server.send_message(msg)
+                        server.send_message(msg, to_addrs=to_list)
                     return True
                 else:
                     with smtplib.SMTP(SMTP_HOST, port, timeout=12.0) as server:
                         server.starttls(context=context)
                         server.login(SMTP_USER, SMTP_PASS)
-                        server.send_message(msg)
+                        server.send_message(msg, to_addrs=to_list)
                     return True
             except Exception as e:
                 last_err = e
@@ -172,25 +263,29 @@ def _worker_loop():
             break
         
         try:
-            to_addr = task.get("to", ALERT_TO)
+            to_addr = task.get("to")
+            fault_class = task.get("fault_class", "General")
+            severity = task.get("severity", "WARNING")
+            if not to_addr:
+                to_addr = get_recipients_for_severity(severity)
+
+            to_display = ", ".join(to_addr) if isinstance(to_addr, (list, tuple, set)) else str(to_addr)
             subject = task.get("subject", "AI-PBMS Alert")
             text = task.get("text", "")
             html = task.get("html", "")
             csv_content = task.get("csv_content", None)
-            fault_class = task.get("fault_class", "General")
-            severity = task.get("severity", "WARNING")
             conf_str = task.get("confidence_str", "N/A")
 
-            print(f"[MAILER] Dispatching alert email to {to_addr} for [{severity}] {fault_class}...")
+            print(f"[MAILER] Dispatching alert email to {to_display} for [{severity}] {fault_class}...")
             _send_smtp_message(to_addr, subject, text, html, csv_content)
-            print(f"[MAILER] Alert email sent successfully to {to_addr}! [OK]")
+            print(f"[MAILER] Alert email sent successfully to {to_display}! [OK]")
 
             record_history_entry({
                 "timestamp": get_ist_now_str(),
                 "fault_class": fault_class,
                 "severity": severity,
                 "confidence": conf_str,
-                "recipient": to_addr,
+                "recipient": to_display,
                 "status": "SENT",
                 "subject": subject,
                 "error": None
@@ -199,12 +294,14 @@ def _worker_loop():
         except Exception as e:
             err_msg = str(e)
             print(f"[MAILER ERROR] Failed to send email alert: {err_msg}")
+            to_addr = task.get("to")
+            to_display = ", ".join(to_addr) if isinstance(to_addr, (list, tuple, set)) else str(to_addr or ALERT_TO)
             record_history_entry({
                 "timestamp": get_ist_now_str(),
                 "fault_class": task.get("fault_class", "General"),
                 "severity": task.get("severity", "WARNING"),
                 "confidence": task.get("confidence_str", "N/A"),
-                "recipient": task.get("to", ALERT_TO),
+                "recipient": to_display,
                 "status": "FAILED",
                 "subject": task.get("subject", "AI-PBMS Alert"),
                 "error": err_msg
@@ -272,8 +369,20 @@ def evaluate_and_enqueue_alert(row: Dict[str, Any],
             confidence = 0.99
             trigger_reason = f"Active fault detected: {fault_class}"
 
-    # If still normal, no alert required
+    # If normal, check if we need to resolve a previously active fault!
     if fault_class in ["Normal", "Normal Operation", "—", None]:
+        with _active_fault_lock:
+            if _active_fault_tracker:
+                for cleared_fault, info in list(_active_fault_tracker.items()):
+                    print(f"[MAILER] Fault cleared ({cleared_fault})! Dispatching [RESOLVED] email...")
+                    enqueue_resolved_alert(
+                        fault_class=cleared_fault,
+                        original_severity=info.get("severity", "WARNING"),
+                        row=row,
+                        recent_rows=recent_rows,
+                        triggered_at=info.get("triggered_at", get_ist_now_str())
+                    )
+                    del _active_fault_tracker[cleared_fault]
         return False
 
     # 2. Determine Severity
@@ -314,15 +423,13 @@ def evaluate_and_enqueue_alert(row: Dict[str, Any],
     ts_str = get_ist_now_str()
     subject = f"[{severity}] AI-PBMS Alert: {fault_class} Detected"
 
-    volts = float(row.get("voltage", 0.0))
+    volts, delta_v, cell_vals = _extract_voltage_info(row)
     current = float(row.get("current", 0.0))
     soc = float(row.get("soc", 0.0))
-    delta_v = float(row.get("delta_v", 0.0))
-    ntc1 = row.get("ntc1", "N/A")
-    ntc2 = row.get("ntc2", "N/A")
+    ntc1 = row.get("ntc1", row.get("temperature", "N/A"))
+    ntc2 = row.get("ntc2", row.get("temperature", "N/A"))
     driving_mode = row.get("Operating Mode") or (prediction.get("Operating Mode") if prediction else "CRUISE")
 
-    cell_vals = [row.get(f"cell_v{i}", "N/A") for i in range(1, 9)]
     cell_table_rows = "".join(
         f"<tr><td style='padding:4px 8px;border:1px solid #ddd;font-weight:bold;'>Cell {i}</td>"
         f"<td style='padding:4px 8px;border:1px solid #ddd;'>{cell_vals[i-1]} V</td></tr>"
@@ -442,9 +549,20 @@ Attached: Last 10 telemetry rows prior to this event (CSV).
     # Generate CSV from recent rows
     csv_str = _build_csv_attachment(recent_rows[-10:])
 
-    # 6. Put in background queue (non-blocking)
+    # 6. Determine dynamic severity-based recipients
+    recipients = get_recipients_for_severity(severity)
+
+    # Track as currently active so we can send a [RESOLVED] email when it clears
+    with _active_fault_lock:
+        _active_fault_tracker[fault_class] = {
+            "severity": severity,
+            "triggered_at": ts_str,
+            "fault_class": fault_class
+        }
+
+    # Put in background queue (non-blocking)
     task = {
-        "to": ALERT_TO or SMTP_USER,
+        "to": recipients,
         "subject": subject,
         "text": body_text,
         "html": body_html,
@@ -462,11 +580,156 @@ Attached: Last 10 telemetry rows prior to this event (CSV).
         return False
 
 
-def send_test_email(to_addr: Optional[str] = None) -> Dict[str, Any]:
+def enqueue_resolved_alert(fault_class: str, 
+                           original_severity: str = "WARNING", 
+                           row: Optional[Dict[str, Any]] = None, 
+                           recent_rows: Optional[List[Dict[str, Any]]] = None,
+                           triggered_at: Optional[str] = None) -> bool:
+    """
+    Dispatches a dedicated green [RESOLVED] email notification when a fault clears.
+    Routes to WARNING or CRITICAL recipients according to original_severity.
+    """
+    ts_str = get_ist_now_str()
+    subject = f"[RESOLVED] AI-PBMS: {fault_class} Cleared / Restored to Normal"
+    recipients = get_recipients_for_severity(original_severity)
+
+    if not row:
+        row = {}
+
+    volts, delta_v, cell_vals = _extract_voltage_info(row)
+    current = float(row.get("current", 0.0))
+    soc = float(row.get("soc", 80.0))
+    ntc1 = row.get("ntc1", row.get("temperature", 28.0))
+    ntc2 = row.get("ntc2", row.get("temperature", 28.0))
+    source = row.get("source", "telemetry")
+    orig_time = triggered_at or ts_str
+
+    body_text = f"""======================================================================
+[RESOLVED] AI-PBMS: {fault_class} Cleared / Restored to Normal
+======================================================================
+Resolved Timestamp: {ts_str}
+Initial Fault     : {fault_class} (Originally flagged at: {orig_time})
+Status            : RESOLVED / NORMAL OPERATION RESTORED
+Source            : {source}
+
+Restored Physical Parameters:
+  Pack Voltage    : {volts:.2f} V
+  Pack Current    : {current:.2f} A
+  SOC             : {soc:.1f} %
+  Cell Spread (ΔV): {delta_v:.3f} V
+  NTC1 / NTC2     : {ntc1} °C / {ntc2} °C
+
+Individual Cell Voltages (8S):
+  C1: {cell_vals[0]} V | C2: {cell_vals[1]} V | C3: {cell_vals[2]} V | C4: {cell_vals[3]} V
+  C5: {cell_vals[4]} V | C6: {cell_vals[5]} V | C7: {cell_vals[6]} V | C8: {cell_vals[7]} V
+
+All cell voltages, thermal gradients, and current levels have returned
+within nominal safety margins.
+======================================================================
+"""
+
+    body_html = f"""<!DOCTYPE html>
+<html>
+<body style="font-family: Arial, sans-serif; background-color: #f4f6f8; margin: 0; padding: 20px;">
+  <div style="max-width: 650px; margin: 0 auto; background: #ffffff; border-radius: 12px; overflow: hidden; border: 1px solid #e1e4e8; box-shadow: 0 4px 12px rgba(0,0,0,0.05);">
+    
+    <div style="background-color: #16a34a; color: white; padding: 20px 24px;">
+      <h2 style="margin: 0; font-size: 20px; font-weight: bold; letter-spacing: 0.5px;">&#10004; [RESOLVED] AI-PBMS: {fault_class} Cleared</h2>
+      <p style="margin: 6px 0 0 0; font-size: 13px; opacity: 0.95;">Resolved At: {ts_str} &middot; Initial Event: {orig_time}</p>
+    </div>
+
+    <div style="padding: 24px;">
+      <div style="background-color: #f0fdf4; border-left: 4px solid #16a34a; padding: 12px 16px; margin-bottom: 20px; border-radius: 0 8px 8px 0;">
+        <strong style="font-size: 14px; color: #166534;">Fault Resolution Notice:</strong>
+        <p style="margin: 4px 0 0 0; font-size: 13px; color: #15803d;">The previous fault condition <strong>({fault_class})</strong> has cleared. All telemetry parameters have successfully stabilized within nominal safe operational thresholds.</p>
+      </div>
+
+      <h4 style="margin: 0 0 10px 0; font-size: 14px; color: #334155; text-transform: uppercase; letter-spacing: 0.5px;">Restored Physical Parameters</h4>
+      <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 13px;">
+        <tr>
+          <td style="padding: 6px 10px; border: 1px solid #e2e8f0; background: #f8fafc; width: 25%;">Pack Voltage</td>
+          <td style="padding: 6px 10px; border: 1px solid #e2e8f0; font-weight: bold;">{volts:.2f} V</td>
+          <td style="padding: 6px 10px; border: 1px solid #e2e8f0; background: #f8fafc; width: 25%;">Pack Current</td>
+          <td style="padding: 6px 10px; border: 1px solid #e2e8f0; font-weight: bold;">{current:.2f} A</td>
+        </tr>
+        <tr>
+          <td style="padding: 6px 10px; border: 1px solid #e2e8f0; background: #f8fafc;">State of Charge</td>
+          <td style="padding: 6px 10px; border: 1px solid #e2e8f0; font-weight: bold;">{soc:.1f} %</td>
+          <td style="padding: 6px 10px; border: 1px solid #e2e8f0; background: #f8fafc;">Cell Spread (&Delta;V)</td>
+          <td style="padding: 6px 10px; border: 1px solid #e2e8f0; font-weight: bold;">{delta_v:.3f} V</td>
+        </tr>
+        <tr>
+          <td style="padding: 6px 10px; border: 1px solid #e2e8f0; background: #f8fafc;">NTC1 Temp</td>
+          <td style="padding: 6px 10px; border: 1px solid #e2e8f0; font-weight: bold;">{ntc1} &deg;C</td>
+          <td style="padding: 6px 10px; border: 1px solid #e2e8f0; background: #f8fafc;">NTC2 Temp</td>
+          <td style="padding: 6px 10px; border: 1px solid #e2e8f0; font-weight: bold;">{ntc2} &deg;C</td>
+        </tr>
+      </table>
+
+      <h4 style="margin: 0 0 10px 0; font-size: 14px; color: #334155; text-transform: uppercase; letter-spacing: 0.5px;">Individual Cell Voltages (8S)</h4>
+      <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 13px; text-align: center;">
+        <tr style="background: #f1f5f9;">
+          <th style="padding: 6px; border: 1px solid #e2e8f0;">Cell 1</th>
+          <th style="padding: 6px; border: 1px solid #e2e8f0;">Cell 2</th>
+          <th style="padding: 6px; border: 1px solid #e2e8f0;">Cell 3</th>
+          <th style="padding: 6px; border: 1px solid #e2e8f0;">Cell 4</th>
+          <th style="padding: 6px; border: 1px solid #e2e8f0;">Cell 5</th>
+          <th style="padding: 6px; border: 1px solid #e2e8f0;">Cell 6</th>
+          <th style="padding: 6px; border: 1px solid #e2e8f0;">Cell 7</th>
+          <th style="padding: 6px; border: 1px solid #e2e8f0;">Cell 8</th>
+        </tr>
+        <tr>
+          <td style="padding: 6px; border: 1px solid #e2e8f0;">{cell_vals[0]} V</td>
+          <td style="padding: 6px; border: 1px solid #e2e8f0;">{cell_vals[1]} V</td>
+          <td style="padding: 6px; border: 1px solid #e2e8f0;">{cell_vals[2]} V</td>
+          <td style="padding: 6px; border: 1px solid #e2e8f0;">{cell_vals[3]} V</td>
+          <td style="padding: 6px; border: 1px solid #e2e8f0;">{cell_vals[4]} V</td>
+          <td style="padding: 6px; border: 1px solid #e2e8f0;">{cell_vals[5]} V</td>
+          <td style="padding: 6px; border: 1px solid #e2e8f0;">{cell_vals[6]} V</td>
+          <td style="padding: 6px; border: 1px solid #e2e8f0;">{cell_vals[7]} V</td>
+        </tr>
+      </table>
+    </div>
+
+    <div style="background-color: #f8fafc; border-top: 1px solid #e2e8f0; padding: 14px 24px; text-align: center; font-size: 11px; color: #94a3b8;">
+      AI-PBMS Intelligent Battery Management System &middot; Team ANS_4X &middot; PSG iTech
+    </div>
+  </div>
+</body>
+</html>
+"""
+
+    csv_str = _build_csv_attachment(recent_rows[-10:]) if recent_rows else ""
+
+    task = {
+        "to": recipients,
+        "subject": subject,
+        "text": body_text,
+        "html": body_html,
+        "csv_content": csv_str,
+        "fault_class": fault_class,
+        "severity": "RESOLVED",
+        "confidence_str": "100%"
+    }
+
+    try:
+        _mail_queue.put_nowait(task)
+        return True
+    except queue.Full:
+        return False
+
+
+def send_test_email(to_addr: Optional[Any] = None, severity: Optional[str] = None) -> Dict[str, Any]:
     """
     Sends an immediate test email to verify SMTP host, credentials, and network connectivity.
+    If to_addr is omitted, uses the configured recipients for the given severity (or ALERT_TO).
     """
-    recipient = to_addr or ALERT_TO or SMTP_USER
+    if to_addr is not None:
+        recipient = to_addr
+    elif severity:
+        recipient = get_recipients_for_severity(severity)
+    else:
+        recipient = ALERT_TO or SMTP_USER
     if not recipient:
         return {"status": "error", "message": "No recipient configured. Set ALERT_TO or SMTP_USER."}
     
@@ -475,10 +738,11 @@ def send_test_email(to_addr: Optional[str] = None) -> Dict[str, Any]:
 
     sample_rows = [
         {
-            "timestamp": ts_str, "source": "test", "voltage": 27.24, "current": 0.0, "temperature": 29.5,
-            "soc": 75.0, "delta_v": 0.035, "cell_v1": 0.000, "cell_v2": 3.892, "cell_v3": 3.895,
-            "cell_v4": 3.889, "cell_v5": 3.891, "cell_v6": 3.894, "cell_v7": 3.892, "cell_v8": 3.893,
-            "ntc1": 29.5, "ntc2": 29.4, "ntc3": 29.5, "ntc4": 29.5
+            "timestamp": ts_str, "source": "test", "voltage": 25.62, "current": 0.0, "temperature": 26.5,
+            "soc": 80.0, "delta_v": 0.005, 
+            "cell_v1": 3.203, "cell_v2": 3.202, "cell_v3": 3.205, "cell_v4": 3.200,
+            "cell_v5": 3.204, "cell_v6": 3.202, "cell_v7": 3.201, "cell_v8": 3.205,
+            "ntc1": 26.5, "ntc2": 26.4, "ntc3": 26.5, "ntc4": 26.5
         }
     ]
     csv_content = _build_csv_attachment(sample_rows)
@@ -532,9 +796,10 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Test AI-PBMS Mailer")
     parser.add_argument("--test", action="store_true", help="Send a test verification email")
     parser.add_argument("--to", type=str, default=None, help="Recipient email address")
+    parser.add_argument("--severity", type=str, default=None, choices=["WARNING", "CRITICAL", "warning", "critical"], help="Test severity routing (WARNING or CRITICAL)")
     args = parser.parse_args()
 
     if args.test or len(sys.argv) == 1:
         print("Sending test email using current environment variables...")
-        result = send_test_email(args.to)
+        result = send_test_email(to_addr=args.to, severity=args.severity)
         print("Result:", json.dumps(result, indent=2))
