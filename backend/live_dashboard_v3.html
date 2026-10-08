@@ -7,17 +7,19 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#F6F4FB;color:#5B5470;padding:1.25rem}
+body{font-family:-apple-system,BlinkMacSystemFont,'Inter','Segoe UI',sans-serif;background:#F8FAFC;color:#1E293B;padding:1.25rem}
 
 /* ── Header ── */
-.hdr{margin-bottom:1rem;border-bottom:1px solid #E8E2F0;padding-bottom:.9rem;display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:10px}
-.hdr-brand{font-size:11px;font-weight:600;color:#8E7FB0;letter-spacing:.08em;text-transform:uppercase;margin-bottom:5px}
-.hdr-title{font-size:20px;font-weight:600;color:#3D3654}
-.hdr-sub{font-size:12px;color:#9B92AE;margin-top:5px}
-.live-badge{display:inline-flex;align-items:center;gap:8px;font-size:12px;font-weight:600;padding:7px 14px;border-radius:20px;background:#E0F2E5;color:#5A9670}
-.live-dot{width:9px;height:9px;border-radius:50%;background:#8EC79F;animation:pulse 1.4s infinite}
-.live-badge.offline{background:#FBE0E0;color:#B05656}
-.live-badge.offline .live-dot{background:#E08A8A;animation:none}
+.hdr{margin-bottom:1rem;border-bottom:1px solid #E2E8F0;padding-bottom:.9rem;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px}
+.hdr-brand{font-size:11px;font-weight:700;color:#2563EB;letter-spacing:.08em;text-transform:uppercase;margin-bottom:5px}
+.hdr-title{font-size:20px;font-weight:700;color:#0F172A}
+.hdr-sub{font-size:12px;color:#64748B;margin-top:5px}
+.nav-home-btn{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;padding:7px 14px;border-radius:20px;background:#EFF6FF;color:#2563EB;text-decoration:none;border:1px solid #DBEAFE;transition:all 0.2s}
+.nav-home-btn:hover{background:#DBEAFE;color:#1D4ED8}
+.live-badge{display:inline-flex;align-items:center;gap:8px;font-size:12px;font-weight:600;padding:7px 14px;border-radius:20px;background:#DCFCE7;color:#166534}
+.live-dot{width:9px;height:9px;border-radius:50%;background:#22C55E;animation:pulse 1.4s infinite}
+.live-badge.offline{background:#FEE2E2;color:#991B1B}
+.live-badge.offline .live-dot{background:#EF4444;animation:none}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
 
 /* ── Layout ── */
@@ -31,14 +33,14 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 @media(max-width:500px){.g6{grid-template-columns:repeat(2,1fr)}.g4{grid-template-columns:1fr}}
 
 /* ── Cards & Params ── */
-.param{background:#FFF;border:1px solid #E8E2F0;border-radius:10px;padding:.85rem .9rem}
-.param-lbl{font-size:10.5px;color:#9B92AE;margin-bottom:5px;text-transform:uppercase;letter-spacing:.04em}
-.param-val{font-size:23px;font-weight:700;line-height:1}
-.param-unit{font-size:12px;font-weight:500;color:#A89FB8}
-.param-bar{height:3px;background:#E8E2F0;border-radius:2px;margin-top:8px;overflow:hidden}
+.param{background:#FFF;border:1px solid #E2E8F0;border-radius:10px;padding:.85rem .9rem;box-shadow:0 1px 3px rgba(0,0,0,0.04)}
+.param-lbl{font-size:10.5px;color:#64748B;margin-bottom:5px;text-transform:uppercase;letter-spacing:.04em}
+.param-val{font-size:23px;font-weight:700;line-height:1;color:#0F172A}
+.param-unit{font-size:12px;font-weight:500;color:#64748B}
+.param-bar{height:3px;background:#E2E8F0;border-radius:2px;margin-top:8px;overflow:hidden}
 .param-fill{height:100%;border-radius:2px;transition:width .4s}
-.card{background:#FFF;border:1px solid #E8E2F0;border-radius:12px;padding:1.1rem 1.25rem;margin-bottom:12px}
-.card-title{font-size:13px;font-weight:600;color:#3D3654;margin-bottom:12px;display:flex;align-items:center;gap:6px}
+.card{background:#FFF;border:1px solid #E2E8F0;border-radius:12px;padding:1.1rem 1.25rem;margin-bottom:12px;box-shadow:0 1px 3px rgba(0,0,0,0.04)}
+.card-title{font-size:13px;font-weight:600;color:#0F172A;margin-bottom:12px;display:flex;align-items:center;gap:6px}
 
 /* ── Cell Grid ── */
 .cell-grid{display:grid;grid-template-columns:repeat(8,1fr);gap:8px}
