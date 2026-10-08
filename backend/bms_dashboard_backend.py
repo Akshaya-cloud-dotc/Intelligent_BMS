@@ -2621,20 +2621,51 @@ def api_explainability():
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
-# ── React Configurator & PDF API Integration ──
+# ── Frontend & Configurator Web Serving ──
 frontend_build_path = os.path.join(MODEL_DIR, "dist")
+CONFIGURATOR_DIR = os.path.join(ROOT_DIR, "frontend", "battery-dashboard")
 
 @app.route('/')
-def serve_react_root():
-    """Serves the React frontend built index.html from the root URL (landing page)."""
-    if not os.path.exists(frontend_build_path):
-        return "React frontend build directory not found. Please build the React frontend using 'npm run build' inside the React directory.", 404
-    return send_from_directory(frontend_build_path, 'index.html')
+def serve_root():
+    """Serves the front landing page (React EV Battery Dashboard / Configurator)."""
+    if os.path.exists(os.path.join(frontend_build_path, 'index.html')):
+        return send_from_directory(frontend_build_path, 'index.html')
+    elif os.path.exists(os.path.join(CONFIGURATOR_DIR, 'index.html')):
+        return send_from_directory(CONFIGURATOR_DIR, 'index.html')
+    return send_from_directory(MODEL_DIR, 'live_dashboard_v3.html')
+
+@app.route('/assets/<path:path>')
+def serve_assets(path):
+    """Serves compiled JS/CSS assets for the front page."""
+    assets_dir = os.path.join(frontend_build_path, 'assets')
+    if os.path.exists(os.path.join(assets_dir, path)):
+        return send_from_directory(assets_dir, path)
+    return "Asset not found", 404
 
 @app.route('/live-monitor')
 def serve_dashboard():
-    """Serves the live telemetry HTML dashboard frontend."""
+    """Serves the live telemetry & AI diagnostic HTML dashboard."""
     return send_from_directory(MODEL_DIR, 'live_dashboard_v3.html')
+
+@app.route('/configurator')
+@app.route('/configurator/<path:path>')
+def serve_configurator(path=None):
+    """Serves the battery pack parameters configurator."""
+    target_dir = frontend_build_path if os.path.exists(frontend_build_path) else CONFIGURATOR_DIR
+    if not os.path.exists(target_dir):
+        return send_from_directory(MODEL_DIR, 'live_dashboard_v3.html')
+    
+    if path and os.path.exists(os.path.join(target_dir, path)):
+        return send_from_directory(target_dir, path)
+    return send_from_directory(target_dir, 'index.html')
+
+@app.route('/style.css')
+def serve_config_css():
+    return send_from_directory(CONFIGURATOR_DIR, 'style.css')
+
+@app.route('/script.js')
+def serve_config_js():
+    return send_from_directory(CONFIGURATOR_DIR, 'script.js')
 
 @app.route('/health', methods=['GET', 'OPTIONS'])
 def health_check():
@@ -2643,31 +2674,10 @@ def health_check():
     else:
         status = init_ml_model(MODEL_DIR)
         response = jsonify(status)
-        
     response.headers['Access-Control-Allow-Origin'] = '*'
     response.headers['Access-Control-Allow-Methods'] = 'GET, OPTIONS'
     response.headers['Access-Control-Allow-Headers'] = 'Content-Type'
     return response
-
-@app.route('/configurator')
-@app.route('/configurator/<path:path>')
-def serve_configurator(path=None):
-    """Serves the static React build for the battery parameters configurator."""
-    if not os.path.exists(frontend_build_path):
-        return "React frontend build directory not found. Please build the React frontend using 'npm run build' inside the React directory.", 404
-    
-    if path is None:
-        return send_from_directory(frontend_build_path, 'index.html')
-        
-    file_path = os.path.join(frontend_build_path, path)
-    if os.path.exists(file_path) and os.path.isfile(file_path):
-        return send_from_directory(frontend_build_path, path)
-    return send_from_directory(frontend_build_path, 'index.html')
-
-@app.route('/assets/<path:path>')
-def serve_assets(path):
-    assets_dir = os.path.join(frontend_build_path, 'assets')
-    return send_from_directory(assets_dir, path)
 
 @app.route('/api/upload', methods=['POST'])
 def upload_pdf():
