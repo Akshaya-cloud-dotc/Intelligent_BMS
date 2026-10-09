@@ -2,8 +2,12 @@ import re
 from io import BytesIO
 from pdfminer.high_level import extract_text
 from schemas import CellParameters
-import pytesseract
-from pdf2image import convert_from_bytes
+try:
+    import pytesseract
+    from pdf2image import convert_from_bytes
+except ImportError:
+    pytesseract = None
+    convert_from_bytes = None
 import pdfplumber
 
 KNOWN_CELLS = {
@@ -458,11 +462,16 @@ def perform_plumber_extraction(pdf_bytes: bytes) -> str:
     return text
 
 def perform_ocr(pdf_bytes: bytes) -> str:
-    images = convert_from_bytes(pdf_bytes)
-    text = ""
-    for img in images:
-        text += pytesseract.image_to_string(img) + "\n"
-    return text
+    if convert_from_bytes is None or pytesseract is None:
+        return ""
+    try:
+        images = convert_from_bytes(pdf_bytes)
+        text = ""
+        for img in images:
+            text += pytesseract.image_to_string(img) + "\n"
+        return text
+    except Exception:
+        return ""
 
 def extract_parameters_from_pdf(pdf_bytes: bytes) -> CellParameters:
     raw_text = extract_text(BytesIO(pdf_bytes))
