@@ -13,12 +13,23 @@ run_dashboard_demo.py — Fault Replay Demo Orchestrator
 """
 
 import os
+# Low-memory safeguard: must be set BEFORE numpy/pandas are imported
+for _v in ("OPENBLAS_NUM_THREADS", "OMP_NUM_THREADS", "MKL_NUM_THREADS"):
+    os.environ.setdefault(_v, "1")
 import sys
+# Never let a console-encoding problem (e.g. the degree sign) crash a replay
+for _s in (sys.stdout, sys.stderr):
+    try:
+        _s.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
 import time
 import json
 import subprocess
 import webbrowser
 import urllib.request
+import queue
+import threading
 import urllib.error
 from datetime import datetime
 import pandas as pd
@@ -73,6 +84,7 @@ DEMO_DATASET_PATH = os.getenv("DEMO_DATASET_PATH", "bms_data_labeled.xlsx")
 # Cached DataFrame in memory
 _CACHED_DF = None
 _BROWSER_OPENED = False
+_DASH_OPENED = False
 _RECENT_ROWS = []
 
 try:
@@ -271,16 +283,26 @@ def post_row(payload: dict) -> bool:
         "X-Ingest-Token": INGEST_TOKEN
     }
     
-    # Try primary INGEST_URL first, then fallback to local backend if unreachable/404
-    candidate_urls = [INGEST_URL]
+    # Stick to the configured INGEST_URL (e.g. Render) and retry it on slow/failed
+    # responses. Only fall back to the local backend when the cloud server has
+    # never answered (e.g. offline laptop demo) -- never switch mid-replay, or the
+    # cloud dashboard stops receiving rows and flags the data as stale.
     local_url = "http://localhost:5000/api/telemetry"
-    if INGEST_URL != local_url:
+    candidate_urls = [INGEST_URL, INGEST_URL]
+    if INGEST_URL != local_url and not _BROWSER_OPENED:
         candidate_urls.append(local_url)
-        
-    for target_url in candidate_urls:
+    is_remote = INGEST_URL != local_url
+    # Keep every attempt SHORT: the dashboard flags replay data as stale/"Disconnected"
+    # after 30s without a new row, so one slow request must never block that long.
+    # (2 attempts x 12s = 24s worst case, under the 30s limit; replay is sent from a
+    # background thread so a slow response never delays the row pacing.)
+    req_timeout = 12.0 if is_remote else 3.0
+
+    last_idx = len(candidate_urls) - 1
+    for idx, target_url in enumerate(candidate_urls):
         try:
             req = urllib.request.Request(target_url, data=req_data, headers=headers)
-            with urllib.request.urlopen(req, timeout=3.0) as resp:
+            with urllib.request.urlopen(req, timeout=req_timeout) as resp:
                 result = json.loads(resp.read().decode("utf-8"))
                 
                 # If we succeeded on a fallback URL, update active target
@@ -288,14 +310,11 @@ def post_row(payload: dict) -> bool:
                     INGEST_URL = local_url
                     DASHBOARD_URL = "http://localhost:5000/live-monitor"
                 
-                # Open browser once first row is confirmed
+                # Mark connection confirmed (browser is already opened by run_replay)
                 if not _BROWSER_OPENED:
                     _BROWSER_OPENED = True
-                    print(f"[REPLAY] Confirmed connection! Opening dashboard: {DASHBOARD_URL}")
-                    try:
-                        webbrowser.open(DASHBOARD_URL)
-                    except Exception:
-                        pass
+                    print("[REPLAY] Connected - first row accepted by the dashboard server.")
+                    _open_dashboard_once()
 
                 # Local email alerting for replay faults
                 if evaluate_and_enqueue_alert:
@@ -323,16 +342,67 @@ def post_row(payload: dict) -> bool:
             if he.code == 401:
                 print(f"\n[ERROR] 401 Unauthorized: Ingest token rejected by {target_url}!")
                 return False
-            # If 404 on cloud, continue to next candidate
-            if he.code == 404 and target_url != candidate_urls[-1]:
+            if idx < last_idx:
+                print(f"\n[Retry] HTTP {he.code} from {target_url}, retrying...")
                 continue
             print(f"\n[HTTP Error {he.code}] on {target_url}: {he.reason}")
         except Exception as e:
-            if target_url != candidate_urls[-1]:
+            if idx < last_idx:
+                print(f"\n[Retry] {target_url} slow/unreachable ({e}), retrying...")
                 continue
             print(f"\n[Error POSTing telemetry to {target_url}] {e}")
             
     return False
+
+
+def _open_dashboard_once():
+    """Opens the live dashboard in the browser a single time per session."""
+    global _DASH_OPENED
+    if _DASH_OPENED:
+        return
+    _DASH_OPENED = True
+    print(f"[DEMO] Opening live dashboard in your browser:\n       {DASHBOARD_URL}")
+    try:
+        webbrowser.open(DASHBOARD_URL)
+    except Exception:
+        print("[DEMO] Could not open the browser automatically - open the URL above manually.")
+
+
+def wake_server(max_wait: int = 90) -> bool:
+    """
+    Pings the server's /health endpoint until it answers, printing progress so the
+    demo never looks frozen (free-tier hosts can take a minute to wake up).
+    Returns True if the server is reachable.
+    """
+    global INGEST_URL, DASHBOARD_URL
+    health_url = INGEST_URL.rsplit("/api/", 1)[0] + "/health"
+    print(f"[DEMO] Connecting to server: {health_url}")
+    start = time.time()
+    attempt = 0
+    while time.time() - start < max_wait:
+        attempt += 1
+        try:
+            with urllib.request.urlopen(health_url, timeout=10) as resp:
+                if resp.status == 200:
+                    print(f"[DEMO] Server is online (took {time.time() - start:.1f}s).")
+                    return True
+        except Exception:
+            pass
+        waited = int(time.time() - start)
+        print(f"[DEMO] Server is waking up... {waited}s (this can take up to a minute)", end="\r", flush=True)
+        time.sleep(3)
+
+    print(f"\n[DEMO] Cloud server did not respond within {max_wait}s.")
+    local_url = "http://localhost:5000/api/telemetry"
+    try:
+        with urllib.request.urlopen("http://localhost:5000/health", timeout=3):
+            print("[DEMO] Local backend found on port 5000 - using it instead.")
+            INGEST_URL = local_url
+            DASHBOARD_URL = "http://localhost:5000/live-monitor"
+            return True
+    except Exception:
+        print("[DEMO] Local backend is not running either. Rows will be retried anyway.")
+        return False
 
 
 def run_replay(fault_name: str, rows: list[dict]):
@@ -340,34 +410,84 @@ def run_replay(fault_name: str, rows: list[dict]):
     if not rows:
         return
 
+    # Make sure the server is awake and the dashboard is open BEFORE streaming,
+    # so values are visible on the dashboard from the very first row.
+    wake_server()
+    _open_dashboard_once()
+    print("[DEMO] Waiting 3s for the dashboard page to load...")
+    time.sleep(3)
+
     delay = 1.0 / REPLAY_RATE_HZ
     total = len(rows)
-    print(f"Starting replay of {fault_name}... (Press Ctrl+C at any time to stop and return to menu)\n")
+    print(f"\nStarting replay of {fault_name}: streaming {total} rows to the dashboard...")
+    print("Watch the browser - live values will update every row. (Ctrl+C stops and returns to menu)\n")
 
-    sent_count = 0
+    # Rows are PACED by the main loop but SENT by a background thread, so one slow
+    # server response (Render can take several seconds under load) never freezes the
+    # replay. If the server lags, queued rows are delivered back-to-back to catch up,
+    # so no row is lost and the dashboard never goes stale.
+    send_q: "queue.Queue" = queue.Queue()
+    stop_evt = threading.Event()
+    stats = {"sent": 0, "failed": 0, "consec": 0}
+
+    def _sender():
+        while not stop_evt.is_set():
+            try:
+                idx, row = send_q.get(timeout=0.5)
+            except queue.Empty:
+                continue
+            try:
+                ok = post_row(row)
+                if ok:
+                    stats["sent"] += 1
+                    stats["consec"] = 0
+                    _RECENT_ROWS.append(dict(row))
+                    if len(_RECENT_ROWS) > 20:
+                        _RECENT_ROWS.pop(0)
+                    backlog = send_q.qsize()
+                    lag = f" (catching up, {backlog} queued)" if backlog > 2 else ""
+                    print(f"\r[{idx}/{total}] V={row.get('voltage', 0.0):.2f}V, I={row.get('current', 0.0):+.1f}A, "
+                          f"T={row.get('temperature', 0.0):.1f}C, dV={row.get('delta_v', 0.0):.3f}V | {fault_name}{lag}   ",
+                          end="", flush=True)
+                else:
+                    stats["failed"] += 1
+                    stats["consec"] += 1
+                    print(f"\n[WARN] Row {idx}/{total} not delivered ({stats['consec']} in a row) - skipping, replay continues.")
+                    if stats["consec"] >= 3:
+                        print("[WARN] Connection looks unstable - re-checking server...")
+                        wake_server(max_wait=30)
+                        stats["consec"] = 0
+            except Exception as exc:
+                stats["failed"] += 1
+                print(f"\n[WARN] Row {idx}/{total} send error ({exc}) - skipping.")
+            finally:
+                send_q.task_done()
+
+    sender = threading.Thread(target=_sender, daemon=True, name="ReplaySender")
+    sender.start()
+
     try:
+        next_t = time.time()
         for idx, row in enumerate(rows, 1):
-            t_start = time.time()
-            success = post_row(row)
-            if success:
-                sent_count += 1
-                _RECENT_ROWS.append(dict(row))
-                if len(_RECENT_ROWS) > 20:
-                    _RECENT_ROWS.pop(0)
-                v = row.get("voltage", 0.0)
-                i = row.get("current", 0.0)
-                t = row.get("temperature", 0.0)
-                dv = row.get("delta_v", 0.0)
-                print(f"\r[{idx}/{total}] V={v:.2f}V, I={i:+.1f}A, T={t:.1f}°C, ΔV={dv:.3f}V | {fault_name}", end="", flush=True)
-            
-            elapsed = time.time() - t_start
-            sleep_time = max(0.01, delay - elapsed)
-            time.sleep(sleep_time)
+            send_q.put((idx, row))
+            next_t += delay
+            time.sleep(max(0.0, next_t - time.time()))
 
-        print(f"\n\n✅ Replay complete! ({sent_count}/{total} rows successfully streamed).")
+        # Wait for the sender to deliver anything still queued
+        while send_q.unfinished_tasks:
+            print(f"\r[DEMO] Delivering last {send_q.unfinished_tasks} queued rows...          ", end="", flush=True)
+            time.sleep(0.5)
+
+        sent_count = stats["sent"]
+        if sent_count == total:
+            print(f"\n\n[OK] Replay complete! ({sent_count}/{total} rows successfully streamed).")
+        else:
+            print(f"\n\n[DONE] Replay finished: {sent_count}/{total} rows delivered, {total - sent_count} skipped due to network errors.")
     except KeyboardInterrupt:
-        print(f"\n\n[PAUSED] Replay stopped by user after {sent_count}/{total} rows.")
-    
+        print(f"\n\n[PAUSED] Replay stopped by user after {stats['sent']}/{total} rows.")
+    finally:
+        stop_evt.set()
+
     print("Returning to menu in 1.5 seconds...")
     time.sleep(1.5)
 

@@ -202,6 +202,36 @@ BUFFER_MAX_SIZE = 60
 latest_raw_row = None
 filtered_state = {}
 
+# --- Shared, cached ML inference -------------------------------------------------
+# run_inference() is expensive (pandas feature engineering + XGBoost) and used to be
+# executed 2-3x for EVERY request (POST handler, GET handler, alert evaluation).
+# On small cloud CPUs that pushed responses to ~20s -> timeouts / "backend not
+# responding". Now it runs at most once per new telemetry row; every caller reuses it.
+_inference_lock = threading.Lock()
+_inference_cache = {"key": None, "value": None}
+_buffer_version = 0   # bumped every time a new row is appended to telemetry_buffer
+
+def cached_inference():
+    """Returns the ML prediction for the current 60-row buffer (or None).
+    Replay/demo rows carry their own fault labels, so inference is skipped for them."""
+    if len(telemetry_buffer) != BUFFER_MAX_SIZE:
+        return None
+    last = telemetry_buffer[-1]
+    if str(last.get("source", "")).startswith("replay:"):
+        return None
+    key = _buffer_version
+    with _inference_lock:
+        if _inference_cache["key"] == key:
+            return _inference_cache["value"]
+        try:
+            value = run_inference(pd.DataFrame(list(telemetry_buffer)), MODEL_DIR)
+        except Exception as inf_err:
+            print(f"[INFERENCE] skipped: {inf_err}")
+            value = None
+        _inference_cache["key"] = key
+        _inference_cache["value"] = value
+        return value
+
 # Historical statistics tracker
 history_stats = {
     "total_rows_processed": 0,
@@ -320,7 +350,11 @@ def check_stale_data():
         if bms_debug_state["last_packet_time"] > 0:
             age = current_time - bms_debug_state["last_packet_time"]
             bms_debug_state["data_age_seconds"] = round(age, 1)
-            if age > 8.0:
+            # Replay rows come over the internet from the demo laptop; a single
+            # slow cloud response (Render free tier can take 10s+) must not flip
+            # the dashboard to "stale". Live BLE keeps the strict 8s limit.
+            stale_limit = 30.0 if bms_debug_state.get("last_source_replay") else 8.0
+            if age > stale_limit:
                 bms_debug_state["is_stale"] = True
                 bms_debug_state["current_valid"] = False
                 bms_debug_state["voltage_valid"] = False
@@ -1435,14 +1469,8 @@ def run_alerts_evaluation():
     else:
         if telemetry_buffer:
             latest_row = telemetry_buffer[-1]
-            prediction = None
-            if len(telemetry_buffer) == BUFFER_MAX_SIZE:
-                try:
-                    df_60 = pd.DataFrame(telemetry_buffer)
-                    prediction = run_inference(df_60, MODEL_DIR)
-                except Exception:
-                    pass
-            
+            prediction = cached_inference()
+
             cycle_analytics = get_cycle_analytics_summary()
             chem_type = detect_chemistry(latest_row)
             cfg = CHEMISTRY_CONFIGS[chem_type]
@@ -2078,6 +2106,7 @@ def add_telemetry():
         with bms_debug_lock:
             source_tag = str(new_row.get("source", ""))
             is_replay = source_tag.startswith("replay:")
+            bms_debug_state["last_source_replay"] = is_replay
 
             # If payload explicitly provides validity flags (like live BLE gateway does)
             has_explicit_valid_flags = ("voltage_valid" in new_row and "current_valid" in new_row)
@@ -2247,11 +2276,15 @@ def add_telemetry():
         telemetry_buffer.append(smoothed_row)
         if len(telemetry_buffer) > BUFFER_MAX_SIZE:
             telemetry_buffer.pop(0)
-            
+        global _buffer_version
+        _buffer_version += 1
+
         prediction = None
-        if len(telemetry_buffer) == BUFFER_MAX_SIZE:
-            df_60 = pd.DataFrame(telemetry_buffer)
-            prediction = run_inference(df_60, MODEL_DIR)
+        # Replay/demo rows already carry their fault label: use it directly instead of
+        # running full ML inference per row (takes ~20s on small cloud CPUs and made
+        # the demo time out / show "Disconnected" once the 60-row buffer filled).
+        if len(telemetry_buffer) == BUFFER_MAX_SIZE and not is_replay:
+            prediction = cached_inference()
         elif is_replay:
             f_label = str(new_row.get("fault_type") or new_row.get("label") or source_tag.replace("replay:", "").strip())
             prediction = {
@@ -2353,10 +2386,10 @@ def get_current_status():
             last_packet_time = bms_debug_state["last_packet_time"]
             
         prediction = None
-        if not is_stale and bluetooth_connected and len(telemetry_buffer) == BUFFER_MAX_SIZE:
-            df_60 = pd.DataFrame(telemetry_buffer)
-            prediction = run_inference(df_60, MODEL_DIR)
-        elif not is_stale and telemetry_buffer and str(telemetry_buffer[-1].get("source", "")).startswith("replay:"):
+        _last_is_replay = bool(telemetry_buffer) and str(telemetry_buffer[-1].get("source", "")).startswith("replay:")
+        if not is_stale and bluetooth_connected and len(telemetry_buffer) == BUFFER_MAX_SIZE and not _last_is_replay:
+            prediction = cached_inference()
+        elif not is_stale and telemetry_buffer and _last_is_replay:
             last_r = telemetry_buffer[-1]
             f_label = str(last_r.get("fault_type") or last_r.get("label") or str(last_r.get("source", "")).replace("replay:", "").strip())
             prediction = {
@@ -2518,8 +2551,11 @@ def upload_datasheet():
 @app.route('/api/reset', methods=['POST'])
 def reset_buffer():
     """Resets both the sliding window buffer, active alerts, alert history, and the historical statistics."""
-    global history_stats, active_alerts, alert_history
+    global history_stats, active_alerts, alert_history, _buffer_version
     telemetry_buffer.clear()
+    _buffer_version += 1
+    _inference_cache["key"] = None
+    _inference_cache["value"] = None
     with alert_lock:
         active_alerts.clear()
         alert_history.clear()

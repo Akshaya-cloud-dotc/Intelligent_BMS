@@ -1718,13 +1718,15 @@ function updateBluetoothStatus(d) {
   }
 }
 
-async function poll(){
+async function _pollOnce(){
   // Update local clock every tick regardless
   document.getElementById('localTime').textContent = new Date().toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false});
 
   try{
     const controller = new AbortController();
-    const timeout = setTimeout(()=>controller.abort(), 3000); // 3s timeout
+    // 15s: cloud hosts (Render) can take several seconds to answer; 3s caused false
+    // "TIMEOUT - backend not responding" banners even though data was flowing.
+    const timeout = setTimeout(()=>controller.abort(), 15000);
     const res = await fetch(API_BASE + '/api/telemetry', {signal: controller.signal});
     clearTimeout(timeout);
 
@@ -2020,6 +2022,9 @@ async function poll(){
     }
   } catch(e){
     consecutiveErrors++;
+    // Ignore a one-off slow/failed request: keep showing the last good data and only
+    // flag the backend as offline after 3 failures in a row.
+    if(consecutiveErrors < 3) return;
     document.getElementById('liveBadge').className='live-badge offline';
     if(e.name==='AbortError'){
       document.getElementById('liveText').textContent='TIMEOUT — backend not responding';
@@ -2043,6 +2048,15 @@ async function poll(){
 // ─────────────────────────────────────────────
 //  INIT
 // ─────────────────────────────────────────────
+// Never start a new poll while the previous one is still running. Overlapping polls
+// used to pile up on a slow server and made the backend even slower.
+let pollBusy = false;
+async function poll(){
+  if(pollBusy) return;
+  pollBusy = true;
+  try { await _pollOnce(); } finally { pollBusy = false; }
+}
+
 initTrend();
 poll();
 setInterval(poll, 1000);
