@@ -1388,6 +1388,16 @@ function updatePredictionDetailsPanel(livePrediction) {
 let latestPrediction = null;
 let latestStats = null;
 
+// SOH is estimated from the BMS cycle count; the BMS does not report SOH itself.
+// Assumes linear fade to 80% at the cell's rated cycle life (INR21700-M50: 500).
+const RATED_CYCLE_LIFE = 500;
+function estimateSoh(rawHex){
+  // JBD basic-info reply (DD 03 ...): cycle count is bytes 12-13
+  if(typeof rawHex !== 'string' || !/^dd0300[0-9a-f]{22,}$/i.test(rawHex)) return null;
+  const cycles = parseInt(rawHex.slice(24, 28), 16);
+  return {cycles, soh: Math.max(0, 100 - 20 * cycles / RATED_CYCLE_LIFE)};
+}
+
 function render(latest, history, prediction, stats, livePrediction, rawRow){
   if(!latest) return;
   latestPrediction = prediction || null;
@@ -1496,6 +1506,7 @@ function render(latest, history, prediction, stats, livePrediction, rawRow){
   const power = num(latest.voltage) * num(latest.current);
   const energy = stats && stats.cumulative_energy_wh !== undefined ? num(stats.cumulative_energy_wh) : 0.0;
   
+  const sohEst = estimateSoh((rawRow || latest).raw_packet_hex);
   const params=[
     {l:'Pack Voltage',v:num(latest.voltage).toFixed(2),u:'V',pct:num(latest.voltage)/33.6*100,col:'#5589B0'},
     {l:'Current',v:num(latest.current).toFixed(2),u:'A',pct:Math.min(100,Math.abs(cur)/OC_LIMIT*100),col:cur > 0.05 ? '#5589B0' : (cur < -0.05 ? '#C8814D' : '#5A9670')},
@@ -1507,6 +1518,9 @@ function render(latest, history, prediction, stats, livePrediction, rawRow){
     socAvail
       ? {l:'SOC',v:num(latest.soc).toFixed(0),u:'%',pct:num(latest.soc),col:'#8D82A9'}
       : {l:'SOC',v:'n/a',u:'',pct:0,col:'#C9C2D8'},
+    sohEst
+      ? {l:'SOH (est.)',v:sohEst.soh.toFixed(1),u:'%',pct:sohEst.soh,col:sohEst.soh>=90?'#5A9670':sohEst.soh>80?'#A8853D':'#B05656',note:`${sohEst.cycles} of ${RATED_CYCLE_LIFE} rated cycles`}
+      : {l:'SOH (est.)',v:'n/a',u:'',pct:0,col:'#C9C2D8'},
     hasCellData
       ? {l:'Max Cell V',v:f.vmax.toFixed(3),u:'V',pct:f.vmax/CELL_MAX*100,col:f.vmax>OV?'#B05656':f.vmax>WN?'#A8853D':'#5A9670'}
       : {l:'Max Cell V',v:'n/a',u:'',pct:0,col:'#C9C2D8'},
@@ -1517,7 +1531,7 @@ function render(latest, history, prediction, stats, livePrediction, rawRow){
   document.getElementById('paramGrid').innerHTML=params.map(p=>`
     <div class="param"><div class="param-lbl">${p.l}</div>
     <div class="param-val" style="color:${p.col}">${p.v}<span class="param-unit"> ${p.u}</span></div>
-    <div class="param-bar"><div class="param-fill" style="width:${Math.max(0,Math.min(100,p.pct))}%;background:${p.col}"></div></div></div>`).join('');
+    <div class="param-bar"><div class="param-fill" style="width:${Math.max(0,Math.min(100,p.pct))}%;background:${p.col}"></div></div>${p.note?`<div style="font-size:10px;color:#9B92AE;margin-top:4px">${p.note}</div>`:''}</div>`).join('');
 
   // ── Mode badge ──
   document.getElementById('modeBadgeWrap').innerHTML=`<span class="mode-badge" style="background:${mode.b};color:${mode.c}">${mode.i} ${latest._overriddenMode}</span>`;
